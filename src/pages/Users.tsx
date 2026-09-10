@@ -3,6 +3,8 @@ import { Search, Lock, Unlock } from 'lucide-react'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
+import { inputBase, btnGhostSm } from '../components/ui/styles'
+import * as tb from '../components/ui/table'
 import { users as initialUsers, accessLogs } from '../data/users'
 import { formatDateTime } from '../data/random'
 import type { AppUser, UserRole } from '../types'
@@ -10,9 +12,9 @@ import type { AppUser, UserRole } from '../types'
 const roles: UserRole[] = ['시스템관리자', '운영관리자', '수요기업담당자', '조회자']
 
 const statusStyle: Record<AppUser['status'], string> = {
-  활성: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  휴면: 'bg-slate-100 text-slate-600 ring-slate-500/20',
-  잠금: 'bg-red-50 text-red-700 ring-red-600/20',
+  활성: 'bg-[#0ca30c]/15 text-[#3ddb3d] ring-[#0ca30c]/30',
+  휴면: 'bg-white/[0.06] text-[color:var(--color-ink-2)] ring-white/10',
+  잠금: 'bg-[#d03b3b]/15 text-[#ff6b6b] ring-[#d03b3b]/35',
 }
 
 export function UsersPage() {
@@ -59,19 +61,23 @@ export function UsersPage() {
         description="역할 기반 접근 통제(RBAC)로 메뉴·기능별 접근 권한을 관리하고 접속 이력을 추적합니다."
       />
 
-      <div className="mb-4 flex gap-2 border-b border-slate-200">
+      <div className="mb-4 flex gap-2 border-b border-white/[0.08]">
         <button
           onClick={() => setTab('users')}
-          className={`px-3 pb-2.5 text-sm font-medium ${
-            tab === 'users' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-slate-500'
+          className={`px-3 pb-2.5 text-sm font-medium transition ${
+            tab === 'users'
+              ? 'border-b-2 border-[#3987e5] text-[color:var(--color-ink-1)]'
+              : 'text-[color:var(--color-ink-3)] hover:text-[color:var(--color-ink-2)]'
           }`}
         >
           사용자 계정
         </button>
         <button
           onClick={() => setTab('logs')}
-          className={`px-3 pb-2.5 text-sm font-medium ${
-            tab === 'logs' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-slate-500'
+          className={`px-3 pb-2.5 text-sm font-medium transition ${
+            tab === 'logs'
+              ? 'border-b-2 border-[#3987e5] text-[color:var(--color-ink-1)]'
+              : 'text-[color:var(--color-ink-3)] hover:text-[color:var(--color-ink-2)]'
           }`}
         >
           접속 이력
@@ -80,61 +86,58 @@ export function UsersPage() {
 
       {tab === 'users' ? (
         <Card padded={false}>
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4">
+          <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] p-4">
             <div className="relative">
-              <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-slate-400" />
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-[color:var(--color-ink-3)]" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="이름, 소속 검색"
-                className="w-60 rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-blue-400"
+                className={`${inputBase} w-60 pl-8`}
               />
             </div>
-            <p className="text-xs text-slate-400">총 {filteredUsers.length}명</p>
+            <p className="text-xs text-[color:var(--color-ink-3)]">총 {filteredUsers.length}명</p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[820px] text-left text-xs">
-              <thead className="bg-slate-50 text-slate-500">
+          <div className={tb.tableWrap}>
+            <table className={`${tb.table} min-w-[820px]`}>
+              <thead className={tb.thead}>
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">이름</th>
-                  <th className="px-4 py-2.5 font-medium">이메일</th>
-                  <th className="px-4 py-2.5 font-medium">소속</th>
-                  <th className="px-4 py-2.5 font-medium">권한(역할)</th>
-                  <th className="px-4 py-2.5 font-medium">최근 로그인</th>
-                  <th className="px-4 py-2.5 font-medium">상태</th>
-                  <th className="px-4 py-2.5 font-medium text-right">계정 잠금</th>
+                  <th className={tb.th}>이름</th>
+                  <th className={tb.th}>이메일</th>
+                  <th className={tb.th}>소속</th>
+                  <th className={tb.th}>권한(역할)</th>
+                  <th className={tb.th}>최근 로그인</th>
+                  <th className={tb.th}>상태</th>
+                  <th className={`${tb.th} text-right`}>계정 잠금</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className={tb.tbody}>
                 {filteredUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50/60">
-                    <td className="px-4 py-3 font-medium text-slate-800">{u.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{u.email}</td>
-                    <td className="px-4 py-3 text-slate-600">{u.department}</td>
-                    <td className="px-4 py-3">
+                  <tr key={u.id} className={tb.tr}>
+                    <td className={tb.tdStrong}>{u.name}</td>
+                    <td className={tb.td}>{u.email}</td>
+                    <td className={tb.td}>{u.department}</td>
+                    <td className={tb.td}>
                       <select
                         value={u.role}
                         onChange={(e) => changeRole(u.id, e.target.value as UserRole)}
-                        className="rounded-md border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400"
+                        className={`${inputBase} py-1`}
                       >
                         {roles.map((r) => (
-                          <option key={r} value={r}>
+                          <option key={r} value={r} className="bg-[color:var(--color-surface)]">
                             {r}
                           </option>
                         ))}
                       </select>
                     </td>
-                    <td className="px-4 py-3 text-slate-500">{formatDateTime(u.lastLogin)}</td>
-                    <td className="px-4 py-3">
+                    <td className={`${tb.td} tabular`}>{formatDateTime(u.lastLogin)}</td>
+                    <td className={tb.td}>
                       <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ring-inset ${statusStyle[u.status]}`}>
                         {u.status}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => toggleLock(u.id)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
-                      >
+                      <button onClick={() => toggleLock(u.id)} className={btnGhostSm}>
                         {u.status === '잠금' ? <Unlock size={12} /> : <Lock size={12} />}
                         {u.status === '잠금' ? '잠금 해제' : '잠금'}
                       </button>
@@ -147,39 +150,39 @@ export function UsersPage() {
         </Card>
       ) : (
         <Card padded={false}>
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 p-4">
+          <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] p-4">
             <div className="relative">
-              <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-slate-400" />
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-[color:var(--color-ink-3)]" />
               <input
                 value={logQuery}
                 onChange={(e) => setLogQuery(e.target.value)}
                 placeholder="사용자, 메뉴, 행위 검색"
-                className="w-64 rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-blue-400"
+                className={`${inputBase} w-64 pl-8`}
               />
             </div>
-            <p className="text-xs text-slate-400">총 {filteredLogs.length}건</p>
+            <p className="text-xs text-[color:var(--color-ink-3)]">총 {filteredLogs.length}건</p>
           </div>
           <div className="max-h-[560px] overflow-y-auto">
-            <table className="w-full min-w-[760px] text-left text-xs">
-              <thead className="sticky top-0 bg-slate-50 text-slate-500">
+            <table className={`${tb.table} min-w-[760px]`}>
+              <thead className={tb.thead}>
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">시각</th>
-                  <th className="px-4 py-2.5 font-medium">사용자</th>
-                  <th className="px-4 py-2.5 font-medium">메뉴</th>
-                  <th className="px-4 py-2.5 font-medium">행위</th>
-                  <th className="px-4 py-2.5 font-medium">IP</th>
-                  <th className="px-4 py-2.5 font-medium">결과</th>
+                  <th className={tb.th}>시각</th>
+                  <th className={tb.th}>사용자</th>
+                  <th className={tb.th}>메뉴</th>
+                  <th className={tb.th}>행위</th>
+                  <th className={tb.th}>IP</th>
+                  <th className={tb.th}>결과</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className={tb.tbody}>
                 {filteredLogs.map((l) => (
-                  <tr key={l.id} className="hover:bg-slate-50/60">
-                    <td className="whitespace-nowrap px-4 py-2.5 text-slate-500">{formatDateTime(l.timestamp)}</td>
-                    <td className="px-4 py-2.5 font-medium text-slate-800">{l.userName}</td>
-                    <td className="px-4 py-2.5 text-slate-600">{l.menu}</td>
-                    <td className="px-4 py-2.5 text-slate-600">{l.action}</td>
-                    <td className="px-4 py-2.5 text-slate-500">{l.ip}</td>
-                    <td className="px-4 py-2.5">
+                  <tr key={l.id} className={tb.tr}>
+                    <td className={`${tb.td} tabular whitespace-nowrap`}>{formatDateTime(l.timestamp)}</td>
+                    <td className={tb.tdStrong}>{l.userName}</td>
+                    <td className={tb.td}>{l.menu}</td>
+                    <td className={tb.td}>{l.action}</td>
+                    <td className={`${tb.td} tabular`}>{l.ip}</td>
+                    <td className={tb.td}>
                       <Badge>{l.result}</Badge>
                     </td>
                   </tr>

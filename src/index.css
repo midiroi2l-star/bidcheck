@@ -1,11 +1,48 @@
 @import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "maplibre-gl/dist/maplibre-gl.css";
 
 @theme {
-  --font-sans: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter Variable", "Pretendard", "Apple SD Gothic Neo", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* Surfaces (dark control-room theme) */
+  --color-bg: #090c13;
+  --color-bg-elevated: #0d111b;
+  --color-surface: #10141f;
+  --color-surface-2: #161c2b;
+  --color-surface-3: #1c2436;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+
+  /* Ink */
+  --color-ink-1: #f3f5fb;
+  --color-ink-2: #aab2c8;
+  --color-ink-3: #707a93;
+
+  /* Brand / categorical (validated: node validate_palette.js --mode dark --surface #0f1420) */
+  --color-brand: #3987e5;
+  --color-brand-2: #22d3ee;
+  --color-cat-1: #3987e5;
+  --color-cat-2: #d95926;
+  --color-cat-3: #199e70;
+  --color-cat-4: #c98500;
+  --color-cat-5: #d55181;
+  --color-cat-6: #22a55f;
+  --color-cat-7: #9085e9;
+  --color-cat-8: #e66767;
+
+  /* Status (fixed, from dataviz skill status palette) */
+  --color-status-good: #0ca30c;
+  --color-status-warning: #fab219;
+  --color-status-serious: #ec835a;
+  --color-status-critical: #d03b3b;
 }
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 html, body, #root {
@@ -14,33 +51,112 @@ html, body, #root {
 
 body {
   margin: 0;
-  background-color: #f4f6f9;
-  color: #17212b;
+  background-color: var(--color-bg);
+  color: var(--color-ink-1);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 * {
   box-sizing: border-box;
 }
 
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+}
+
+/* Ambient control-room backdrop: soft radial glows + faint grid */
+.app-shell-bg {
+  background-color: var(--color-bg);
+  background-image:
+    radial-gradient(1100px 520px at 12% -8%, rgba(57, 135, 229, 0.16), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(34, 211, 238, 0.08), transparent 55%),
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: auto, auto, 44px 44px, 44px 44px;
+  background-position: 0 0, 0 0, -1px -1px, -1px -1px;
+}
+
+.glass-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border);
+}
+
+.glow-ring {
+  box-shadow: 0 0 0 1px rgba(57, 135, 229, 0.35), 0 0 24px rgba(57, 135, 229, 0.22);
+}
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #2a3247;
   border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #384263;
 }
 
 @keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.85); }
 }
 .pulse-dot {
   animation: pulse-dot 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.6); opacity: 0.6; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+.pulse-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: pulse-ring 2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--color-surface-2) 25%, var(--color-surface-3) 37%, var(--color-surface-2) 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* MapLibre popup/control theming to match the dark UI */
+.maplibregl-popup-content {
+  background: var(--color-surface-2);
+  color: var(--color-ink-1);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+}
+.maplibregl-popup-tip {
+  border-top-color: var(--color-surface-2) !important;
+  border-bottom-color: var(--color-surface-2) !important;
+}
+.maplibregl-ctrl-group {
+  background: var(--color-surface-2) !important;
+  border: 1px solid var(--color-border-strong) !important;
+}
+.maplibregl-ctrl-group button {
+  background: transparent !important;
+}
+.maplibregl-ctrl-attrib {
+  background: rgba(9, 12, 19, 0.7) !important;
+  color: var(--color-ink-3) !important;
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--color-ink-2) !important;
 }

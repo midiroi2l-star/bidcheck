@@ -3,6 +3,8 @@ import { Search, CheckCheck, Settings2, Power } from 'lucide-react'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card, CardHeader } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
+import { inputBase, filterPill, btnGhostSm } from '../components/ui/styles'
+import * as tb from '../components/ui/table'
 import { alarms as initialAlarms, alarmRules as initialRules } from '../data/alarms'
 import { formatDateTime } from '../data/random'
 import type { Alarm, AlarmRule, AlarmStatus } from '../types'
@@ -63,19 +65,23 @@ export function Alarms() {
         description="임계값 초과 및 외부 연계 시스템 경보를 실시간으로 확인·처리하고 경보 규칙을 관리합니다."
       />
 
-      <div className="mb-4 flex gap-2 border-b border-slate-200">
+      <div className="mb-4 flex gap-2 border-b border-white/[0.08]">
         <button
           onClick={() => setTab('list')}
-          className={`px-3 pb-2.5 text-sm font-medium ${
-            tab === 'list' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-slate-500'
+          className={`px-3 pb-2.5 text-sm font-medium transition ${
+            tab === 'list'
+              ? 'border-b-2 border-[#3987e5] text-[color:var(--color-ink-1)]'
+              : 'text-[color:var(--color-ink-3)] hover:text-[color:var(--color-ink-2)]'
           }`}
         >
           경보 처리 현황
         </button>
         <button
           onClick={() => setTab('rules')}
-          className={`px-3 pb-2.5 text-sm font-medium ${
-            tab === 'rules' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-slate-500'
+          className={`px-3 pb-2.5 text-sm font-medium transition ${
+            tab === 'rules'
+              ? 'border-b-2 border-[#3987e5] text-[color:var(--color-ink-1)]'
+              : 'text-[color:var(--color-ink-3)] hover:text-[color:var(--color-ink-2)]'
           }`}
         >
           경보 규칙 관리
@@ -90,75 +96,68 @@ export function Alarms() {
                 key={k}
                 onClick={() => setStatusFilter(statusFilter === k ? '전체' : k)}
                 className={`rounded-xl border p-3 text-left transition ${
-                  statusFilter === k ? 'border-blue-300 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                  statusFilter === k
+                    ? 'border-[#3987e5]/50 bg-[#3987e5]/10'
+                    : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]'
                 }`}
               >
-                <p className="text-xs text-slate-500">{k}</p>
-                <p className="mt-1 text-lg font-bold text-slate-900">{counts[k]}</p>
+                <p className="text-xs text-[color:var(--color-ink-3)]">{k}</p>
+                <p className="tabular mt-1 text-lg font-bold text-[color:var(--color-ink-1)]">{counts[k]}</p>
               </button>
             ))}
           </div>
 
           <Card className="mt-4" padded={false}>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] p-4">
               <div className="flex items-center gap-2">
                 {(['전체', '위험', '경고', '주의'] as const).map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setSeverityFilter(s)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                      severityFilter === s ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
+                  <button key={s} onClick={() => setSeverityFilter(s)} className={filterPill(severityFilter === s)}>
                     {s}
                   </button>
                 ))}
               </div>
               <div className="relative">
-                <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-slate-400" />
+                <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-[color:var(--color-ink-3)]" />
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="수용가명, 메시지 검색"
-                  className="rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-blue-400"
+                  className={`${inputBase} pl-8`}
                 />
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500">
+            <div className={tb.tableWrap}>
+              <table className={`${tb.table} min-w-[900px]`}>
+                <thead className={tb.thead}>
                   <tr>
-                    <th className="px-4 py-2.5 font-medium">발생시각</th>
-                    <th className="px-4 py-2.5 font-medium">수용가</th>
-                    <th className="px-4 py-2.5 font-medium">설비</th>
-                    <th className="px-4 py-2.5 font-medium">내용</th>
-                    <th className="px-4 py-2.5 font-medium">심각도</th>
-                    <th className="px-4 py-2.5 font-medium">담당자</th>
-                    <th className="px-4 py-2.5 font-medium">상태</th>
-                    <th className="px-4 py-2.5 font-medium text-right">처리</th>
+                    <th className={tb.th}>발생시각</th>
+                    <th className={tb.th}>수용가</th>
+                    <th className={tb.th}>설비</th>
+                    <th className={tb.th}>내용</th>
+                    <th className={tb.th}>심각도</th>
+                    <th className={tb.th}>담당자</th>
+                    <th className={tb.th}>상태</th>
+                    <th className={`${tb.th} text-right`}>처리</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className={tb.tbody}>
                   {filtered.slice(0, 40).map((a) => (
-                    <tr key={a.id} className="hover:bg-slate-50/60">
-                      <td className="whitespace-nowrap px-4 py-3 text-slate-500">{formatDateTime(a.occurredAt)}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800">{a.tenantName}</td>
-                      <td className="px-4 py-3 text-slate-600">{a.equipmentName}</td>
-                      <td className="px-4 py-3 text-slate-600">{a.message}</td>
-                      <td className="px-4 py-3">
+                    <tr key={a.id} className={tb.tr}>
+                      <td className={`${tb.td} tabular whitespace-nowrap`}>{formatDateTime(a.occurredAt)}</td>
+                      <td className={tb.tdStrong}>{a.tenantName}</td>
+                      <td className={tb.td}>{a.equipmentName}</td>
+                      <td className={tb.td}>{a.message}</td>
+                      <td className={tb.td}>
                         <Badge>{a.severity}</Badge>
                       </td>
-                      <td className="px-4 py-3 text-slate-600">{a.assignee ?? '-'}</td>
-                      <td className="px-4 py-3">
+                      <td className={tb.td}>{a.assignee ?? '-'}</td>
+                      <td className={tb.td}>
                         <Badge dot>{a.status}</Badge>
                       </td>
                       <td className="px-4 py-3 text-right">
                         {a.status !== '처리완료' && (
-                          <button
-                            onClick={() => advance(a.id)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-100"
-                          >
+                          <button onClick={() => advance(a.id)} className={btnGhostSm}>
                             <CheckCheck size={12} />
                             {a.status === '미확인' ? '확인 처리' : a.status === '확인' ? '처리 시작' : '완료 처리'}
                           </button>
@@ -168,7 +167,7 @@ export function Alarms() {
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-10 text-center text-slate-400">
+                      <td colSpan={8} className="px-4 py-10 text-center text-[color:var(--color-ink-3)]">
                         조건에 맞는 경보가 없습니다.
                       </td>
                     </tr>
@@ -184,44 +183,46 @@ export function Alarms() {
             title="설비·센서별 경보 발생 임계값"
             subtitle="센서 데이터가 임계값을 초과하면 실시간 경보 이벤트가 생성됩니다"
             action={
-              <div className="flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs text-slate-500">
+              <div className="flex items-center gap-1 rounded-lg bg-white/[0.05] px-2.5 py-1.5 text-xs text-[color:var(--color-ink-3)]">
                 <Settings2 size={13} /> 총 {rules.length}개 규칙
               </div>
             }
           />
           <div className="overflow-x-auto px-1">
-            <table className="w-full min-w-[900px] text-left text-xs">
-              <thead className="bg-slate-50 text-slate-500">
+            <table className={`${tb.table} min-w-[900px]`}>
+              <thead className={tb.thead}>
                 <tr>
-                  <th className="px-4 py-2.5 font-medium">센서유형</th>
-                  <th className="px-4 py-2.5 font-medium">적용 대상</th>
-                  <th className="px-4 py-2.5 font-medium">주의 구간</th>
-                  <th className="px-4 py-2.5 font-medium">위험 구간</th>
-                  <th className="px-4 py-2.5 font-medium">심각도</th>
-                  <th className="px-4 py-2.5 font-medium">알림 대상</th>
-                  <th className="px-4 py-2.5 font-medium">사용 여부</th>
+                  <th className={tb.th}>센서유형</th>
+                  <th className={tb.th}>적용 대상</th>
+                  <th className={tb.th}>주의 구간</th>
+                  <th className={tb.th}>위험 구간</th>
+                  <th className={tb.th}>심각도</th>
+                  <th className={tb.th}>알림 대상</th>
+                  <th className={tb.th}>사용 여부</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className={tb.tbody}>
                 {rules.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50/60">
-                    <td className="px-4 py-3 font-medium text-slate-800">{r.sensorType}</td>
-                    <td className="px-4 py-3 text-slate-600">{r.targetScope}</td>
-                    <td className="px-4 py-3 text-slate-600">
+                  <tr key={r.id} className={tb.tr}>
+                    <td className={tb.tdStrong}>{r.sensorType}</td>
+                    <td className={tb.td}>{r.targetScope}</td>
+                    <td className={`${tb.td} tabular`}>
                       {r.warnMin} ~ {r.warnMax}
                     </td>
-                    <td className="px-4 py-3 text-slate-600">
+                    <td className={`${tb.td} tabular`}>
                       {r.dangerMin} ~ {r.dangerMax}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className={tb.td}>
                       <Badge>{r.severity}</Badge>
                     </td>
-                    <td className="px-4 py-3 text-slate-600">{r.notifyTargets.join(', ')}</td>
-                    <td className="px-4 py-3">
+                    <td className={tb.td}>{r.notifyTargets.join(', ')}</td>
+                    <td className={tb.td}>
                       <button
                         onClick={() => toggleRule(r.id)}
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                          r.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ring-inset ${
+                          r.enabled
+                            ? 'bg-[#0ca30c]/15 text-[#3ddb3d] ring-[#0ca30c]/30'
+                            : 'bg-white/[0.05] text-[color:var(--color-ink-3)] ring-white/10'
                         }`}
                       >
                         <Power size={12} />
@@ -233,7 +234,7 @@ export function Alarms() {
               </tbody>
             </table>
           </div>
-          <p className="px-4 pb-4 pt-2 text-[11px] text-slate-400">
+          <p className="px-4 pb-4 pt-2 text-[11px] text-[color:var(--color-ink-3)]">
             ※ 임계값 초과 시 지정된 수신자에게 알림톡이 자동 발송되며, 미확인 경보는 종합 대시보드에 실시간 반영됩니다.
           </p>
         </Card>

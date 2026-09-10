@@ -3,6 +3,7 @@ import { Search, ChevronDown, ChevronRight } from 'lucide-react'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
+import { inputBase } from '../components/ui/styles'
 import { equipment } from '../data/equipment'
 import { sensors } from '../data/sensors'
 import { tenants } from '../data/tenants'
@@ -34,36 +35,36 @@ export function Equipment() {
       />
 
       <Card padded={false}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] p-4">
           <div className="flex items-center gap-2">
             <select
               value={tenantFilter}
               onChange={(e) => setTenantFilter(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs outline-none focus:border-blue-400"
+              className={inputBase}
             >
-              <option value="전체">전체 수요기업</option>
+              <option value="전체" className="bg-[color:var(--color-surface)]">전체 수요기업</option>
               {tenants.map((t) => (
-                <option key={t.id} value={t.id}>
+                <option key={t.id} value={t.id} className="bg-[color:var(--color-surface)]">
                   {t.name}
                 </option>
               ))}
             </select>
             <div className="relative">
-              <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-slate-400" />
+              <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-[color:var(--color-ink-3)]" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="설비명, 기업명 검색"
-                className="w-56 rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-blue-400"
+                className={`${inputBase} w-56 pl-8`}
               />
             </div>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-[color:var(--color-ink-3)]">
             총 {filtered.length}대 · 센서 {sensors.filter((s) => filtered.some((e) => e.id === s.equipmentId)).length}개
           </p>
         </div>
 
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-white/[0.06]">
           {filtered.slice(0, 60).map((eq) => {
             const tenant = tenants.find((t) => t.id === eq.tenantId)
             const eqSensors = sensors.filter((s) => s.equipmentId === eq.id)
@@ -72,54 +73,56 @@ export function Equipment() {
               <div key={eq.id}>
                 <button
                   onClick={() => setExpanded(isOpen ? null : eq.id)}
-                  className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-slate-50/60"
+                  className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-white/[0.03]"
                 >
                   <div className="flex items-center gap-3">
                     {isOpen ? (
-                      <ChevronDown size={15} className="text-slate-400" />
+                      <ChevronDown size={15} className="text-[color:var(--color-ink-3)]" />
                     ) : (
-                      <ChevronRight size={15} className="text-slate-400" />
+                      <ChevronRight size={15} className="text-[color:var(--color-ink-3)]" />
                     )}
                     <div>
-                      <p className="text-sm font-medium text-slate-800">{eq.name}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-sm font-medium text-[color:var(--color-ink-1)]">{eq.name}</p>
+                      <p className="text-xs text-[color:var(--color-ink-3)]">
                         {tenant?.name} · {eq.location} · 설치일 {formatDate(eq.installedDate)}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-slate-500">센서 {eqSensors.length}개</span>
+                    <span className="tabular text-xs text-[color:var(--color-ink-3)]">센서 {eqSensors.length}개</span>
                     <Badge>{eq.status}</Badge>
                     <Badge dot>{eq.riskLevel}</Badge>
                   </div>
                 </button>
                 {isOpen && (
-                  <div className="grid grid-cols-1 gap-3 bg-slate-50/70 px-4 pb-4 pt-1 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 bg-black/20 px-4 pb-4 pt-1 sm:grid-cols-2 lg:grid-cols-3">
                     {eqSensors.map((s) => (
-                      <div key={s.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div key={s.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
                         <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold text-slate-700">{s.type} 센서</p>
+                          <p className="text-xs font-semibold text-[color:var(--color-ink-2)]">{s.type} 센서</p>
                           <Badge dot>{s.status}</Badge>
                         </div>
-                        <p className="mt-1.5 text-lg font-bold text-slate-900">
+                        <p className="tabular mt-1.5 text-lg font-bold text-[color:var(--color-ink-1)]">
                           {s.currentValue}
-                          <span className="ml-1 text-xs font-normal text-slate-400">{s.unit}</span>
+                          <span className="ml-1 text-xs font-normal text-[color:var(--color-ink-3)]">{s.unit}</span>
                         </p>
-                        <p className="mt-1 text-[11px] text-slate-400">
+                        <p className="tabular mt-1 text-[11px] text-[color:var(--color-ink-3)]">
                           주의 {s.thresholdWarnMin}~{s.thresholdWarnMax} · 위험 {s.thresholdDangerMin}+
                         </p>
-                        <p className="mt-1 text-[11px] text-slate-400">갱신: {formatDateTime(s.lastUpdated)}</p>
+                        <p className="tabular mt-1 text-[11px] text-[color:var(--color-ink-3)]">갱신: {formatDateTime(s.lastUpdated)}</p>
                       </div>
                     ))}
                     {eqSensors.length === 0 && (
-                      <p className="col-span-full py-3 text-xs text-slate-400">부착된 센서가 없습니다.</p>
+                      <p className="col-span-full py-3 text-xs text-[color:var(--color-ink-3)]">부착된 센서가 없습니다.</p>
                     )}
                   </div>
                 )}
               </div>
             )
           })}
-          {filtered.length === 0 && <p className="px-4 py-10 text-center text-xs text-slate-400">검색 결과가 없습니다.</p>}
+          {filtered.length === 0 && (
+            <p className="px-4 py-10 text-center text-xs text-[color:var(--color-ink-3)]">검색 결과가 없습니다.</p>
+          )}
         </div>
       </Card>
     </div>

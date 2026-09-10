@@ -3,6 +3,7 @@ import { Download, PlayCircle, FileBarChart } from 'lucide-react'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
 import { Badge } from '../components/ui/Badge'
+import { btnGhostSm } from '../components/ui/styles'
 import { safetyReports } from '../data/reports'
 import { formatDateTime } from '../data/random'
 import type { SafetyReport } from '../types'
@@ -46,18 +47,18 @@ export function Reports() {
 
       <div className="grid grid-cols-1 gap-4">
         {reports.map((r) => (
-          <Card key={r.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Card key={r.id} hover className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#3987e5]/15 text-[#7ab1f2]">
                 <FileBarChart size={18} />
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-800">{r.title}</p>
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="text-sm font-semibold text-[color:var(--color-ink-1)]">{r.title}</p>
+                <p className="mt-0.5 text-xs text-[color:var(--color-ink-3)]">
                   {r.templateName} · {r.schedule} 배포
                 </p>
-                <p className="mt-1 text-[11px] text-slate-400">수신자: {r.recipients.join(', ')}</p>
-                <p className="mt-0.5 text-[11px] text-slate-400">
+                <p className="mt-1 text-[11px] text-[color:var(--color-ink-3)]">수신자: {r.recipients.join(', ')}</p>
+                <p className="tabular mt-0.5 text-[11px] text-[color:var(--color-ink-3)]">
                   최근 생성: {r.lastGeneratedAt ? formatDateTime(r.lastGeneratedAt) : '이력 없음'} · 다음 예정:{' '}
                   {formatDateTime(r.nextScheduledAt)}
                 </p>
@@ -66,15 +67,12 @@ export function Reports() {
             <div className="flex items-center gap-2 sm:flex-col sm:items-end">
               <Badge>{r.status}</Badge>
               <div className="flex gap-2">
-                <button
-                  onClick={() => generateNow(r.id)}
-                  className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
-                >
+                <button onClick={() => generateNow(r.id)} className={btnGhostSm}>
                   <PlayCircle size={13} /> 즉시 생성
                 </button>
                 <button
                   onClick={() => download(r)}
-                  className="flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-[11px] font-medium text-blue-700 hover:bg-blue-100"
+                  className="inline-flex items-center gap-1 rounded-lg bg-[#3987e5]/15 px-2.5 py-1.5 text-[11px] font-medium text-[#7ab1f2] ring-1 ring-inset ring-[#3987e5]/30 transition hover:bg-[#3987e5]/25"
                 >
                   <Download size={13} /> 다운로드
                 </button>

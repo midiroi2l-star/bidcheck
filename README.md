@@ -6,9 +6,13 @@
 ## 기술 스택
 
 - React 19 + TypeScript + Vite
-- Tailwind CSS v4
-- React Router
-- Recharts (차트), Lucide React (아이콘)
+- Tailwind CSS v4 — 다크 "관제센터" 테마, 커스텀 디자인 토큰(`src/index.css`)
+- React Router (HashRouter, GitHub Pages 호환)
+- Recharts (차트) — 색맹 접근성 검증된 팔레트 적용
+- MapLibre GL + CARTO 무료 다크 베이스맵 — 실제 인터랙티브 지도(오픈소스, API 키 불필요)
+- Framer Motion — 진입 애니메이션, 카운트업 숫자
+- Fontsource (Inter Variable, JetBrains Mono) — 자체 호스팅 폰트
+- Lucide React (아이콘)
 
 ## 실행 방법
 

@@ -1,15 +1,17 @@
+import { lazy } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
-import { Dashboard } from './pages/Dashboard'
-import { IndustrialMap } from './pages/IndustrialMap'
-import { Monitoring } from './pages/Monitoring'
-import { Alarms } from './pages/Alarms'
-import { Tenants } from './pages/Tenants'
-import { Equipment } from './pages/Equipment'
-import { PublicData } from './pages/PublicData'
-import { Reports } from './pages/Reports'
-import { UsersPage } from './pages/Users'
-import { Logs } from './pages/Logs'
+
+const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })))
+const IndustrialMap = lazy(() => import('./pages/IndustrialMap').then((m) => ({ default: m.IndustrialMap })))
+const Monitoring = lazy(() => import('./pages/Monitoring').then((m) => ({ default: m.Monitoring })))
+const Alarms = lazy(() => import('./pages/Alarms').then((m) => ({ default: m.Alarms })))
+const Tenants = lazy(() => import('./pages/Tenants').then((m) => ({ default: m.Tenants })))
+const Equipment = lazy(() => import('./pages/Equipment').then((m) => ({ default: m.Equipment })))
+const PublicData = lazy(() => import('./pages/PublicData').then((m) => ({ default: m.PublicData })))
+const Reports = lazy(() => import('./pages/Reports').then((m) => ({ default: m.Reports })))
+const UsersPage = lazy(() => import('./pages/Users').then((m) => ({ default: m.UsersPage })))
+const Logs = lazy(() => import('./pages/Logs').then((m) => ({ default: m.Logs })))
 
 function App() {
   return (

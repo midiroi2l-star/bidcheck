@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { PageHeader } from '../components/ui/PageHeader'
 import { Card } from '../components/ui/Card'
+import { inputBase, filterPill } from '../components/ui/styles'
+import * as tb from '../components/ui/table'
 import { operationLogs } from '../data/users'
 import { formatDateTime } from '../data/random'
 import type { OperationLog } from '../types'
@@ -9,12 +11,12 @@ import type { OperationLog } from '../types'
 const categories: OperationLog['category'][] = ['등록', '수정', '삭제', '조회', '스케줄링', '설정변경']
 
 const categoryStyle: Record<OperationLog['category'], string> = {
-  등록: 'bg-blue-50 text-blue-700',
-  수정: 'bg-amber-50 text-amber-700',
-  삭제: 'bg-red-50 text-red-700',
-  조회: 'bg-slate-100 text-slate-600',
-  스케줄링: 'bg-purple-50 text-purple-700',
-  설정변경: 'bg-teal-50 text-teal-700',
+  등록: 'bg-[#3987e5]/15 text-[#7ab1f2]',
+  수정: 'bg-[#fab219]/15 text-[#ffc94d]',
+  삭제: 'bg-[#d03b3b]/15 text-[#ff6b6b]',
+  조회: 'bg-white/[0.06] text-[color:var(--color-ink-2)]',
+  스케줄링: 'bg-[#9085e9]/15 text-[#b3aaf2]',
+  설정변경: 'bg-[#199e70]/15 text-[#4dd6a4]',
 }
 
 export function Logs() {
@@ -42,59 +44,53 @@ export function Logs() {
       />
 
       <Card padded={false}>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] p-4">
           <div className="flex flex-wrap items-center gap-2">
             {(['전체', ...categories] as const).map((c) => (
-              <button
-                key={c}
-                onClick={() => setCategory(c)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                  category === c ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
+              <button key={c} onClick={() => setCategory(c)} className={filterPill(category === c)}>
                 {c}
               </button>
             ))}
           </div>
           <div className="relative">
-            <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-slate-400" />
+            <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-[color:var(--color-ink-3)]" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="사용자, 대상, 내용 검색"
-              className="w-64 rounded-lg border border-slate-200 py-1.5 pl-8 pr-3 text-xs outline-none focus:border-blue-400"
+              className={`${inputBase} w-64 pl-8`}
             />
           </div>
         </div>
 
         <div className="max-h-[640px] overflow-y-auto">
-          <table className="w-full min-w-[780px] text-left text-xs">
-            <thead className="sticky top-0 bg-slate-50 text-slate-500">
+          <table className={`${tb.table} min-w-[780px]`}>
+            <thead className={tb.thead}>
               <tr>
-                <th className="px-4 py-2.5 font-medium">시각</th>
-                <th className="px-4 py-2.5 font-medium">구분</th>
-                <th className="px-4 py-2.5 font-medium">대상</th>
-                <th className="px-4 py-2.5 font-medium">처리자</th>
-                <th className="px-4 py-2.5 font-medium">상세내용</th>
+                <th className={tb.th}>시각</th>
+                <th className={tb.th}>구분</th>
+                <th className={tb.th}>대상</th>
+                <th className={tb.th}>처리자</th>
+                <th className={tb.th}>상세내용</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className={tb.tbody}>
               {filtered.map((l) => (
-                <tr key={l.id} className="hover:bg-slate-50/60">
-                  <td className="whitespace-nowrap px-4 py-2.5 text-slate-500">{formatDateTime(l.timestamp)}</td>
-                  <td className="px-4 py-2.5">
+                <tr key={l.id} className={tb.tr}>
+                  <td className={`${tb.td} tabular whitespace-nowrap`}>{formatDateTime(l.timestamp)}</td>
+                  <td className={tb.td}>
                     <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${categoryStyle[l.category]}`}>
                       {l.category}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-slate-700">{l.target}</td>
-                  <td className="px-4 py-2.5 text-slate-600">{l.userName}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{l.detail}</td>
+                  <td className={tb.tdStrong}>{l.target}</td>
+                  <td className={tb.td}>{l.userName}</td>
+                  <td className={tb.td}>{l.detail}</td>
                 </tr>
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-slate-400">
+                  <td colSpan={5} className="px-4 py-10 text-center text-[color:var(--color-ink-3)]">
                     검색 결과가 없습니다.
                   </td>
                 </tr>
