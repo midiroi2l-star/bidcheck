@@ -1,0 +1,55 @@
+import type { SafetyReport } from '../types'
+import { minutesAgo, daysAgo } from './random'
+
+export const safetyReports: SafetyReport[] = [
+  {
+    id: 'RPT-001',
+    title: '여수산단 주간 안전현황 리포트',
+    templateName: '주간 통합 안전 리포트',
+    schedule: '주간',
+    recipients: ['사업관리자', '수요기업 담당자 전체'],
+    lastGeneratedAt: daysAgo(3),
+    nextScheduledAt: daysAgo(-4),
+    status: '발송완료',
+  },
+  {
+    id: 'RPT-002',
+    title: '설비별 이상감지·경보 월간 리포트',
+    templateName: '월간 경보 통계 리포트',
+    schedule: '월간',
+    recipients: ['안전관리팀', '발주사 상황실'],
+    lastGeneratedAt: daysAgo(12),
+    nextScheduledAt: daysAgo(-18),
+    status: '생성완료',
+  },
+  {
+    id: 'RPT-003',
+    title: '수요기업별 설비진단 일간 브리핑',
+    templateName: '일간 진단 브리핑',
+    schedule: '일간',
+    recipients: ['수요기업 담당자'],
+    lastGeneratedAt: minutesAgo(480),
+    nextScheduledAt: minutesAgo(-960),
+    status: '발송완료',
+  },
+  {
+    id: 'RPT-004',
+    title: '공공데이터 연계 재해·재난 동향 리포트',
+    templateName: '수시 재난동향 리포트',
+    schedule: '수시',
+    recipients: ['사업관리자', '안전관리팀'],
+    lastGeneratedAt: null,
+    nextScheduledAt: minutesAgo(-60),
+    status: '예약됨',
+  },
+  {
+    id: 'RPT-005',
+    title: '대성정밀화학 특별점검 결과 리포트',
+    templateName: '특별점검 리포트',
+    schedule: '수시',
+    recipients: ['대성정밀화학 담당자', '안전관리팀'],
+    lastGeneratedAt: daysAgo(1),
+    nextScheduledAt: daysAgo(-30),
+    status: '실패',
+  },
+]
