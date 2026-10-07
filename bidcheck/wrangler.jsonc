@@ -18,8 +18,8 @@
       "migrations_dir": "migrations"
     }
   ],
-  // R2: `npx wrangler r2 bucket create bidcheck-files`
-  "r2_buckets": [{ "binding": "FILES", "bucket_name": "bidcheck-files" }],
+  // 첨부파일은 기본적으로 D1 에 저장한다. 파일이 아주 많아지면 R2 를 켜고 아래 주석을 풀면 된다.
+  // "r2_buckets": [{ "binding": "FILES", "bucket_name": "bidcheck-files" }],
   "vars": {
     "G2B_API_BASE": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService",
     "CLAUDE_MODEL": "claude-opus-5-5"

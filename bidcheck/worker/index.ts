@@ -1,5 +1,6 @@
 import { Hono, type Context } from "hono";
 import { analyzeBid, draftProposal, extractProfile, type Env } from "./claude";
+import { storage } from "./storage";
 import { downloadAttachment, G2BError, lookupNotice, searchNotices } from "./g2b";
 import {
   BID_CATEGORIES,
@@ -85,6 +86,7 @@ app.get("/health", (c) =>
     g2b: Boolean(c.env.G2B_SERVICE_KEY),
     claude: Boolean(c.env.ANTHROPIC_API_KEY),
     auth: Boolean(c.env.APP_PASSWORD),
+    storage: c.env.FILES ? "r2" : "d1",
     model: c.env.CLAUDE_MODEL,
   }),
 );
@@ -335,7 +337,7 @@ app.delete("/bids/:id", async (c) => {
   const bid = await getBid(c.env, id);
   if (!bid) return c.json({ ok: true });
   const files = await c.env.DB.prepare("SELECT id, r2_key FROM bid_files WHERE bid_id = ?").bind(id).all<{ id: string; r2_key: string }>();
-  for (const f of files.results) await c.env.FILES.delete([f.r2_key, `text/${f.id}.txt`]);
+  await storage(c.env).delete(files.results.flatMap((f) => [f.r2_key, `text/${f.id}.txt`]));
   await c.env.DB.batch([
     c.env.DB.prepare("DELETE FROM bid_files WHERE bid_id = ?").bind(id),
     c.env.DB.prepare("DELETE FROM analyses WHERE bid_id = ?").bind(id),
@@ -350,7 +352,7 @@ app.delete("/bids/:id", async (c) => {
 
 async function storeText(env: Env, id: string, text: string | null | undefined) {
   if (!text?.trim()) return false;
-  await env.FILES.put(`text/${id}.txt`, text, { httpMetadata: { contentType: "text/plain; charset=utf-8" } });
+  await storage(env).put(`text/${id}.txt`, text, "text/plain; charset=utf-8");
   return true;
 }
 
@@ -363,7 +365,7 @@ app.post("/bids/:id/files", async (c) => {
   const kind = String(form.get("kind") ?? "other");
   const fileId = crypto.randomUUID();
   const key = `bids/${bidId}/${fileId}/${safeName(file.name)}`;
-  await c.env.FILES.put(key, file.stream(), { httpMetadata: { contentType: file.type || "application/octet-stream" } });
+  await storage(c.env).put(key, await file.arrayBuffer(), file.type || "application/octet-stream");
   const hasText = await storeText(c.env, fileId, form.get("text") as string | null);
   await c.env.DB.prepare(
     "INSERT INTO bid_files (id, bid_id, kind, filename, mime, size, r2_key, has_text) VALUES (?,?,?,?,?,?,?,?)",
@@ -393,7 +395,7 @@ app.post("/bids/:id/fetch-attachments", async (c) => {
       const { name, type, buf } = await downloadAttachment(a.url, a.name);
       const fileId = crypto.randomUUID();
       const key = `bids/${bidId}/${fileId}/${safeName(name)}`;
-      await c.env.FILES.put(key, buf, { httpMetadata: { contentType: type } });
+      await storage(c.env).put(key, buf, type);
       const kind = /제안요청|RFP/i.test(name) ? "rfp" : /공고/.test(name) ? "notice" : /과업|규격|시방/.test(name) ? "spec" : /서식|양식/.test(name) ? "form" : "other";
       await c.env.DB.prepare(
         "INSERT INTO bid_files (id, bid_id, kind, filename, mime, size, r2_key, source_url) VALUES (?,?,?,?,?,?,?,?)",
@@ -437,7 +439,7 @@ app.delete("/bid-files/:fid", async (c) => {
     .bind(fid)
     .first<{ bid_id: string; filename: string; r2_key: string }>();
   if (f) {
-    await c.env.FILES.delete([f.r2_key, `text/${fid}.txt`]);
+    await storage(c.env).delete([f.r2_key, `text/${fid}.txt`]);
     await c.env.DB.prepare("DELETE FROM bid_files WHERE id = ?").bind(fid).run();
     await log(c.env, f.bid_id, "첨부 삭제", f.filename);
   }
@@ -446,9 +448,9 @@ app.delete("/bid-files/:fid", async (c) => {
 
 async function serveR2(c: Context<{ Bindings: Env }>, f: { filename: string; mime: string | null; r2_key: string } | null) {
   if (!f) return c.json({ error: "파일 없음" }, 404);
-  const obj = await c.env.FILES.get(f.r2_key);
+  const obj = await storage(c.env).get(f.r2_key);
   if (!obj) return c.json({ error: "파일 없음" }, 404);
-  return new Response(obj.body, {
+  return new Response(obj.stream(), {
     headers: {
       "Content-Type": f.mime || "application/octet-stream",
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(f.filename)}`,
@@ -544,7 +546,7 @@ app.post("/company/docs", async (c) => {
   if (!(file instanceof File)) return c.json({ error: "파일이 없습니다." }, 400);
   const id = crypto.randomUUID();
   const key = `company/${id}/${safeName(file.name)}`;
-  await c.env.FILES.put(key, file.stream(), { httpMetadata: { contentType: file.type || "application/octet-stream" } });
+  await storage(c.env).put(key, await file.arrayBuffer(), file.type || "application/octet-stream");
   const hasText = await storeText(c.env, id, form.get("text") as string | null);
   const category = String(form.get("category") ?? "other");
   const title = String(form.get("title") || file.name);
@@ -585,7 +587,7 @@ app.delete("/company/docs/:id", async (c) => {
   const id = c.req.param("id");
   const d = await c.env.DB.prepare("SELECT title, r2_key FROM company_docs WHERE id = ?").bind(id).first<{ title: string; r2_key: string }>();
   if (d) {
-    await c.env.FILES.delete([d.r2_key, `text/${id}.txt`]);
+    await storage(c.env).delete([d.r2_key, `text/${id}.txt`]);
     await c.env.DB.prepare("DELETE FROM company_docs WHERE id = ?").bind(id).run();
     await log(c.env, null, "회사 서류 삭제", d.title);
   }

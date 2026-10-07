@@ -10,10 +10,12 @@ import {
   type Bid,
   type FileKind,
 } from "../shared/types";
+import { storage } from "./storage";
 
 export interface Env {
   DB: D1Database;
-  FILES: R2Bucket;
+  /** 선택: R2 버킷. 없으면 파일도 D1 에 저장 */
+  FILES?: R2Bucket;
   ANTHROPIC_API_KEY?: string;
   /** 선택: Cloudflare AI Gateway 등 프록시 주소 */
   ANTHROPIC_BASE_URL?: string;
@@ -46,9 +48,9 @@ const MAX_PDF_BYTES = 24 * 1024 * 1024;
 async function toBlocks(env: Env, f: SourceFile): Promise<BetaContentBlockParam[]> {
   const isPdf = f.mime === "application/pdf" || f.filename.toLowerCase().endsWith(".pdf");
   if (isPdf) {
-    const obj = await env.FILES.get(f.r2_key);
+    const obj = await storage(env).get(f.r2_key);
     if (obj && obj.size <= MAX_PDF_BYTES) {
-      const bytes = new Uint8Array(await obj.arrayBuffer());
+      const bytes = await obj.bytes();
       return [
         {
           type: "document",
@@ -59,7 +61,7 @@ async function toBlocks(env: Env, f: SourceFile): Promise<BetaContentBlockParam[
     }
   }
   if (f.has_text) {
-    const txt = await env.FILES.get(`text/${f.id}.txt`);
+    const txt = await storage(env).get(`text/${f.id}.txt`);
     if (txt) {
       return [
         {

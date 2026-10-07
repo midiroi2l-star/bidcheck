@@ -34,7 +34,8 @@ bidcheck/
 └─ src/             React 화면 (HWP/HWPX/DOCX 텍스트 추출, 엑셀·Word 생성은 브라우저에서 처리)
 ```
 
-- 저장소: **D1**(입찰·분석·제안서·히스토리), **R2**(원본 첨부파일·회사 서류)
+- 저장소: **D1 하나로 전부 처리** — 입찰·분석·제안서·히스토리뿐 아니라 원본 첨부파일·회사 서류도 D1 에 1.8MB 조각으로 저장합니다(R2 불필요).
+  D1 무료 플랜은 DB당 500MB(유료 10GB)이므로 공고 첨부 수천 건까지 충분합니다. 더 커지면 `wrangler.jsonc` 의 R2 설정 주석만 풀면 R2 로 전환됩니다.
 - PDF 는 원본을 그대로 Claude 에 전달하고, HWP 등은 브라우저에서 텍스트를 추출해 함께 저장합니다.
   *배포용(읽기전용)·암호 HWP* 는 텍스트 추출이 안 되므로 한글에서 PDF 로 저장해 올리세요.
 - AI 모델: `claude-opus-5-5` (`wrangler.jsonc` 의 `CLAUDE_MODEL` 로 변경 가능). 응답 거부 시 서버 측 자동 대체 모델(fallback)을 사용합니다.
@@ -44,7 +45,7 @@ bidcheck/
 ### 1. 준비물
 - **공공데이터포털 인증키**: data.go.kr 에서 `조달청_나라장터 입찰공고정보서비스` 활용신청 → 일반 인증키(Decoding)
 - **Claude API 키**: console.anthropic.com
-- Cloudflare 계정 (D1·R2 사용)
+- Cloudflare 계정 (D1 사용, R2 불필요)
 
 ### 2. 최초 1회 설정
 ```bash
@@ -52,7 +53,6 @@ cd bidcheck
 npm install
 npx wrangler login
 npx wrangler d1 create bidcheck            # 출력된 database_id 를 wrangler.jsonc 에 붙여넣기
-npx wrangler r2 bucket create bidcheck-files
 npm run db:migrate:remote
 
 npx wrangler secret put ANTHROPIC_API_KEY
@@ -74,7 +74,7 @@ GitHub 저장소 **Settings → Secrets and variables → Actions → New reposi
 | `APP_PASSWORD` | 웹 접속 비밀번호 |
 
 그 다음 **Actions → Deploy BidCheck (Cloudflare) → Run workflow** 를 누르면
-D1·R2 생성 → DB 마이그레이션 → 배포 → 비밀값 등록까지 자동으로 진행되고, 실행 결과 요약(Summary)에 접속 주소가 표시됩니다.
+D1 생성 → DB 마이그레이션 → 배포 → 비밀값 등록까지 자동으로 진행되고, 실행 결과 요약(Summary)에 접속 주소가 표시됩니다.
 이후에는 `bidcheck/` 를 수정해 push 할 때마다 자동 배포됩니다.
 
 > 보안: `APP_PASSWORD` 를 설정하지 않으면 URL 을 아는 누구나 접근할 수 있습니다. 더 강하게 막으려면 Cloudflare Zero Trust **Access** 로 회사 이메일만 허용하세요.
@@ -83,7 +83,7 @@ D1·R2 생성 → DB 마이그레이션 → 배포 → 비밀값 등록까지 �
 ```bash
 cp .dev.vars.example .dev.vars   # 키 입력
 npm run db:migrate:local
-npm run dev                      # http://localhost:5173 (D1·R2 는 로컬 에뮬레이션)
+npm run dev                      # http://localhost:5173 (D1 은 로컬 에뮬레이션)
 ```
 
 ## 참고 및 한계
