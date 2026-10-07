@@ -71,6 +71,7 @@ jobs:
       - name: Build & deploy
         if: env.CLOUDFLARE_API_TOKEN != ''
         run: |
+          set -o pipefail
           npm run build
           npx wrangler deploy 2>&1 | tee deploy.log
           URL=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
