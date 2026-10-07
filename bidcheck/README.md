@@ -62,9 +62,20 @@ npx wrangler secret put APP_PASSWORD       # 사내 공유용 접속 비밀번�
 npm run deploy                             # https://bidcheck.<계정>.workers.dev
 ```
 
-### 3. 자동 배포 (선택)
-GitHub 저장소 Settings → Secrets 에 `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` 를 등록하면
-`main` 브랜치에 `bidcheck/` 변경이 머지될 때 `.github/workflows/deploy-bidcheck.yml` 이 마이그레이션과 배포를 수행합니다.
+### 3. 자동 배포 (권장 — 로컬 설치 없이 GitHub 에서 전부 처리)
+GitHub 저장소 **Settings → Secrets and variables → Actions → New repository secret** 에 등록:
+
+| 이름 | 값 |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API 토큰 ("Edit Cloudflare Workers" 템플릿 + **D1 Edit** 권한 추가) |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare 대시보드 우측의 Account ID |
+| `ANTHROPIC_API_KEY` | Claude API 키 |
+| `G2B_SERVICE_KEY` | 공공데이터포털 인증키(Decoding) |
+| `APP_PASSWORD` | 웹 접속 비밀번호 |
+
+그 다음 **Actions → Deploy BidCheck (Cloudflare) → Run workflow** 를 누르면
+D1·R2 생성 → DB 마이그레이션 → 배포 → 비밀값 등록까지 자동으로 진행되고, 실행 결과 요약(Summary)에 접속 주소가 표시됩니다.
+이후에는 `bidcheck/` 를 수정해 push 할 때마다 자동 배포됩니다.
 
 > 보안: `APP_PASSWORD` 를 설정하지 않으면 URL 을 아는 누구나 접근할 수 있습니다. 더 강하게 막으려면 Cloudflare Zero Trust **Access** 로 회사 이메일만 허용하세요.
 
