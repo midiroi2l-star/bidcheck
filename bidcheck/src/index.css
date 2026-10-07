@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+  --color-brand-50: #eef3f9;
+  --color-brand-100: #d9e4f1;
+  --color-brand-500: #2f5d8f;
+  --color-brand-600: #24507f;
+  --color-brand-700: #1f3a5f;
+  --color-brand-900: #142640;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 antialiased;
+}
+
+.prose-md h1 { @apply text-xl font-bold mt-6 mb-3 text-slate-900; }
+.prose-md h2 { @apply text-lg font-bold mt-6 mb-2 text-slate-900 border-b border-slate-200 pb-1; }
+.prose-md h3 { @apply text-base font-semibold mt-4 mb-2 text-slate-900; }
+.prose-md h4 { @apply font-semibold mt-3 mb-1; }
+.prose-md p { @apply my-2 leading-7; }
+.prose-md ul { @apply list-disc pl-6 my-2 space-y-1; }
+.prose-md ol { @apply list-decimal pl-6 my-2 space-y-1; }
+.prose-md blockquote { @apply border-l-4 border-brand-500 bg-brand-50 px-3 py-1 my-2 text-slate-600; }
+.prose-md table { @apply w-full border-collapse my-3 text-sm; }
+.prose-md th { @apply border border-slate-300 bg-slate-100 px-2 py-1 text-left; }
+.prose-md td { @apply border border-slate-300 px-2 py-1 align-top; }
+.prose-md code { @apply bg-slate-100 px-1 rounded text-sm; }
+.prose-md strong { @apply font-semibold text-slate-900; }

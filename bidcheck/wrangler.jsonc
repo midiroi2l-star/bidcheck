@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bidcheck",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": { "enabled": true },
+  // D1: `npx wrangler d1 create bidcheck` 실행 후 출력되는 database_id 로 교체하세요.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bidcheck",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // R2: `npx wrangler r2 bucket create bidcheck-files`
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "bidcheck-files" }],
+  "vars": {
+    "G2B_API_BASE": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService",
+    "CLAUDE_MODEL": "claude-opus-5-5"
+  }
+  // 비밀값(secret)은 `npx wrangler secret put <이름>` 으로 등록:
+  //   ANTHROPIC_API_KEY  - Claude API 키
+  //   G2B_SERVICE_KEY    - 공공데이터포털 조달청 입찰공고정보서비스 인증키(Decoding 키)
+  //   APP_PASSWORD       - 웹 접속 비밀번호(사내 공유용)
+}

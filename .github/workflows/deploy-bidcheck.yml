@@ -1,0 +1,35 @@
+name: Deploy BidCheck (Cloudflare)
+
+on:
+  push:
+    branches: [main]
+    paths: ["bidcheck/**", ".github/workflows/deploy-bidcheck.yml"]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bidcheck
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bidcheck/package-lock.json
+      - run: npm ci
+      - run: npm run lint && npm run build
+      - name: Apply D1 migrations
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npm run db:migrate:remote
+      - name: Deploy
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npx wrangler deploy
+      - name: Skip notice
+        if: env.CLOUDFLARE_API_TOKEN == ''
+        run: echo "CLOUDFLARE_API_TOKEN 시크릿이 없어 배포를 건너뜁니다 (빌드 검증만 수행)."
