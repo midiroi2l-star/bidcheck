@@ -43,7 +43,9 @@ jobs:
 
       - name: Check Cloudflare account
         if: env.CLOUDFLARE_API_TOKEN != ''
-        run: npx wrangler whoami
+        run: |
+          curl -s https://api.cloudflare.com/client/v4/user/tokens/verify -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log("토큰 상태:", j.success ? j.result.status : JSON.stringify(j.errors))})'
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then echo "::error::CLOUDFLARE_ACCOUNT_ID 시크릿을 등록하세요"; exit 1; fi
 
       - name: Ensure D1 database
         if: env.CLOUDFLARE_API_TOKEN != ''
