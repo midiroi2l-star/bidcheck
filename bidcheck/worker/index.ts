@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { analyzeBid, draftProposal, extractProfile, type Env } from "./claude";
 import { storage } from "./storage";
+import { hashPassword, resolveEnv, saveSetting } from "./settings";
 import { downloadAttachment, G2BError, lookupNotice, searchNotices } from "./g2b";
 import {
   BID_CATEGORIES,
@@ -25,12 +26,17 @@ app.onError((err, c) => {
   return c.json({ error: err.message || "서버 오류" }, status);
 });
 
-// APP_PASSWORD 가 설정되어 있으면 모든 API 에 Bearer 비밀번호를 요구한다
+// 설정값(키·비밀번호)을 요청마다 합치고, 비밀번호가 정해져 있으면 모든 API 에 Bearer 비밀번호를 요구한다.
+// 비밀번호가 아직 없으면 초기 설정(/setup)과 상태 확인(/health)만 허용한다.
 app.use("*", async (c, next) => {
-  const pw = c.env.APP_PASSWORD;
-  if (pw && c.req.path !== "/api/health") {
-    const got = c.req.header("Authorization")?.replace(/^Bearer\s+/i, "");
-    if (got !== pw) return c.json({ error: "비밀번호가 필요합니다." }, 401);
+  const env = await resolveEnv(c.env);
+  c.env = env;
+  const open = c.req.path === "/api/health";
+  if (env.PASSWORD_HASH) {
+    const got = c.req.header("Authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+    if (!open && (await hashPassword(got)) !== env.PASSWORD_HASH) return c.json({ error: "비밀번호가 필요합니다." }, 401);
+  } else if (!open && c.req.path !== "/api/setup") {
+    return c.json({ error: "초기 설정이 필요합니다.", needsSetup: true }, 428);
   }
   await next();
 });
@@ -81,15 +87,34 @@ const safeName = (n: string) => n.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").sli
 
 /* ───────────── 상태 ───────────── */
 
-app.get("/health", (c) =>
-  c.json({
-    g2b: Boolean(c.env.G2B_SERVICE_KEY),
-    claude: Boolean(c.env.ANTHROPIC_API_KEY),
-    auth: Boolean(c.env.APP_PASSWORD),
-    storage: c.env.FILES ? "r2" : "d1",
-    model: c.env.CLAUDE_MODEL,
-  }),
-);
+app.get("/health", (c) => {
+  const env = c.env as Env & { PASSWORD_HASH?: string };
+  return c.json({
+    g2b: Boolean(env.G2B_SERVICE_KEY),
+    claude: Boolean(env.ANTHROPIC_API_KEY),
+    auth: Boolean(env.PASSWORD_HASH),
+    needsSetup: !env.PASSWORD_HASH,
+    storage: env.FILES ? "r2" : "d1",
+    model: env.CLAUDE_MODEL,
+  });
+});
+
+/** 초기 설정 및 설정 변경. 비밀번호가 이미 있으면 위 미들웨어에서 인증된 경우에만 도달한다. */
+app.post("/setup", async (c) => {
+  const env = c.env as Env & { PASSWORD_HASH?: string };
+  const b = await c.req.json<{ password?: string; anthropicKey?: string; g2bKey?: string }>();
+  const pw = b.password?.trim();
+  if (!env.PASSWORD_HASH && !pw) return c.json({ error: "접속 비밀번호를 정해 주세요." }, 400);
+  if (pw) {
+    if (pw.length < 6) return c.json({ error: "비밀번호는 6자 이상으로 정해 주세요." }, 400);
+    if (env.APP_PASSWORD) return c.json({ error: "비밀번호가 서버 비밀값(APP_PASSWORD)으로 고정되어 있어 여기서 바꿀 수 없습니다." }, 400);
+    await saveSetting(env.DB, "app_password_hash", await hashPassword(pw));
+  }
+  if (b.anthropicKey?.trim()) await saveSetting(env.DB, "anthropic_api_key", b.anthropicKey.trim());
+  if (b.g2bKey?.trim()) await saveSetting(env.DB, "g2b_service_key", b.g2bKey.trim());
+  await log(env, null, "설정 변경", [pw && "비밀번호", b.anthropicKey?.trim() && "Claude 키", b.g2bKey?.trim() && "나라장터 키"].filter(Boolean).join(", "));
+  return c.json({ ok: true });
+});
 
 app.get("/dashboard", async (c) => {
   const db = c.env.DB;

@@ -39,9 +39,9 @@ export default function Dashboard() {
         <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
-            서버 설정이 완료되지 않았습니다:{" "}
+            아직 입력하지 않은 키가 있습니다:{" "}
             {!health.data.g2b && <b>G2B_SERVICE_KEY(공공데이터포털 인증키) </b>}
-            {!health.data.claude && <b>ANTHROPIC_API_KEY(Claude API 키)</b>}. README 의 배포 안내를 참고하세요.
+            {!health.data.claude && <b>ANTHROPIC_API_KEY(Claude API 키)</b>}. <Link to="/settings" className="font-semibold underline">설정에서 입력하기</Link>
           </div>
         </div>
       )}

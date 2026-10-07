@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Building2, FileSearch, History, LayoutDashboard, ListChecks, Lock, Menu, X } from "lucide-react";
+import { Building2, FileSearch, History, LayoutDashboard, ListChecks, Lock, Menu, Settings as SettingsIcon, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { NavLink, Route, Routes } from "react-router-dom";
 import { Button, inputCls } from "./components/ui";
@@ -10,6 +10,8 @@ import Company from "./pages/Company";
 import Dashboard from "./pages/Dashboard";
 import HistoryPage from "./pages/History";
 import Search from "./pages/Search";
+import SettingsPage, { SetupScreen, type Health } from "./pages/Settings";
+import { api } from "./lib/api";
 
 const NAV = [
   { to: "/", label: "대시보드", icon: LayoutDashboard, end: true },
@@ -17,17 +19,26 @@ const NAV = [
   { to: "/bids", label: "관심·진행 입찰", icon: ListChecks },
   { to: "/company", label: "회사 정보·서류", icon: Building2 },
   { to: "/history", label: "히스토리", icon: History },
+  { to: "/settings", label: "설정", icon: SettingsIcon },
 ];
 
 export default function App() {
   const [needLogin, setNeedLogin] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState<boolean | null>(null);
 
   useEffect(() => {
     const h = () => setNeedLogin(true);
     window.addEventListener("bidcheck:unauthorized", h);
+    api
+      .get<Health>("/health")
+      .then((r) => setNeedsSetup(r.needsSetup))
+      .catch(() => setNeedsSetup(false));
     return () => window.removeEventListener("bidcheck:unauthorized", h);
   }, []);
+
+  if (needsSetup === null) return null;
+  if (needsSetup) return <SetupScreen />;
 
   return (
     <div className="min-h-screen md:flex">
@@ -83,6 +94,7 @@ export default function App() {
             <Route path="/bids/:id" element={<BidDetail />} />
             <Route path="/company" element={<Company />} />
             <Route path="/history" element={<HistoryPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<p className="text-slate-500">페이지를 찾을 수 없습니다.</p>} />
           </Routes>
         </div>
