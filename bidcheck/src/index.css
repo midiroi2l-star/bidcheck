@@ -12,6 +12,27 @@
 
 body {
   @apply bg-slate-50 text-slate-800 antialiased;
+  /* 한글은 단어(어절) 단위로 줄바꿈 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-break: strict;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+  body {
+    @apply bg-white;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .report section,
+  .prose-md table,
+  .prose-md svg {
+    break-inside: avoid;
+  }
 }
 
 .prose-md h1 { @apply text-xl font-bold mt-6 mb-3 text-slate-900; }

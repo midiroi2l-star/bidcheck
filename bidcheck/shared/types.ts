@@ -13,13 +13,34 @@ export type BidStatus = (typeof BID_STATUSES)[number];
 
 export const STATUS_LABEL: Record<BidStatus, string> = {
   interest: "관심",
-  analyzed: "분석완료",
+  analyzed: "결과서",
   in_progress: "입찰진행",
   submitted: "제출완료",
   won: "낙찰",
   lost: "탈락",
-  dropped: "포기",
+  dropped: "미참여",
 };
+
+export const STATUS_DESC: Record<BidStatus, string> = {
+  interest: "관심 공고로 등록, 아직 분석 전",
+  analyzed: "적합도 분석 결과보고서 작성 완료, 참여 여부 결정 대기",
+  in_progress: "참여 결정, 제안서·서류 준비 중",
+  submitted: "입찰·제안서 제출 완료, 결과 대기",
+  won: "낙찰(우선협상대상자 선정)",
+  lost: "탈락·유찰",
+  dropped: "검토 후 참여하지 않기로 결정",
+};
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "user";
+  must_change: number;
+  active?: number;
+  last_login_at?: string | null;
+  created_at?: string;
+}
 
 export const BID_CATEGORIES = ["용역", "물품", "공사", "외자"] as const;
 export type BidCategory = (typeof BID_CATEGORIES)[number];
@@ -50,6 +71,8 @@ export interface G2BNotice {
   awardMethod: string | null;
   detailUrl: string | null;
   attachments: { name: string; url: string }[];
+  /** 면허(업종) 제한·참가가능지역 (상세 조회 시 채움) */
+  extra?: { licenses: string[]; regions: string[] };
   raw: Record<string, unknown>;
 }
 
@@ -74,6 +97,8 @@ export interface Bid {
   fit_score: number | null;
   recommendation: string | null;
   memo: string | null;
+  assignee: string | null;
+  checklist: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -109,7 +134,30 @@ export interface HistoryEntry {
   action: string;
   detail: string | null;
   at: string;
+  user_id?: string | null;
+  user_name?: string | null;
   bid_title?: string | null;
+}
+
+export interface Comment {
+  id: number;
+  bid_id: string;
+  user_id: string | null;
+  user_name: string | null;
+  body: string;
+  created_at: string;
+}
+
+export interface SavedSearch {
+  id: number;
+  name: string;
+  category: string;
+  keyword: string | null;
+  org: string | null;
+  min_amount: number | null;
+  max_amount: number | null;
+  last_run_at: string | null;
+  new_count?: number;
 }
 
 export interface Proposal {
@@ -165,72 +213,93 @@ export const COMPANY_DOC_CATEGORIES: { key: string; label: string; why: string }
   { key: "other", label: "기타", why: "" },
 ];
 
-/* ───────────────────────── AI 분석 결과 스키마 ───────────────────────── */
+/* ───────────────────────── AI 분석 결과보고서 스키마 ───────────────────────── */
 
 const verdict = z.enum(["pass", "fail", "unknown"]);
+const severity = z.enum(["high", "medium", "low"]);
 
 export const AnalysisSchema = z.object({
+  executive_summary: z.string().describe("경영진 보고용 핵심 요약 3~5문장: 무슨 사업인지, 참여 가능 여부, 예상 경쟁력, 결론"),
   overview: z.object({
     project_name: z.string(),
-    purpose: z.string().describe("사업 목적·범위 요약 (3~5문장)"),
+    client: z.string().describe("발주기관"),
+    demand_org: z.string().describe("수요기관"),
+    purpose: z.string().describe("사업 목적 (2~3문장)"),
+    scope: z.array(z.string()).describe("주요 과업 범위 항목"),
     period: z.string().describe("사업(계약) 기간"),
     budget_text: z.string().describe("사업예산/추정가격/기초금액 등 금액 정보"),
     contract_method: z.string().describe("계약방법 (예: 제한경쟁, 협상에 의한 계약)"),
-    award_method: z.string().describe("낙찰자 결정방법과 기술:가격 배점 비율"),
+    award_method: z.string().describe("낙찰자 결정방법"),
+    eval_ratio: z.string().describe("기술:가격 배점 비율 (예: 90:10)"),
+    submission_method: z.string().describe("제출 방법 (전자제출/방문, 제안서 부수·분량, 발표 여부 등)"),
     key_dates: z.array(z.object({ label: z.string(), date: z.string() })),
   }),
   eligibility: z
     .array(
       z.object({
-        requirement: z.string().describe("자격 요건 원문 요지"),
+        requirement: z.string().describe("자격 요건 요지"),
         source: z.string().describe("근거 문서와 위치 (예: 입찰공고문 3.가)"),
         company_status: z.string().describe("당사 현황 (프로필/서류 기준)"),
         verdict,
-        action_needed: z.string().describe("충족을 위해 필요한 조치 또는 확인 사항. 없으면 빈 문자열"),
+        action_needed: z.string().describe("충족을 위해 필요한 조치. 없으면 빈 문자열"),
       }),
     )
     .describe("입찰참가자격 요건별 충족 여부"),
-  credibility: z
-    .array(
-      z.object({
-        item: z.string().describe("신인도/경영상태 평가 항목 (예: 신용평가등급, 인증 가점, 제재 감점)"),
-        criteria: z.string().describe("평가 기준 (공고/평가기준표 또는 관련 기준 근거)"),
-        max_points: z.number().nullable(),
-        expected_points: z.number().nullable().describe("당사 예상 점수(감점은 음수)"),
-        verdict,
-        note: z.string(),
-      }),
-    )
-    .describe("신인도·경영상태 항목별 예상 점수"),
-  scoring: z.object({
-    technical_max: z.number().nullable(),
-    technical_expected: z.number().nullable(),
+  eligibility_summary: z.string().describe("참가자격 종합 판정 한 줄"),
+  evaluation: z.object({
     technical_items: z.array(
       z.object({
         item: z.string(),
         max_points: z.number().nullable(),
         expected_points: z.number().nullable(),
-        rationale: z.string(),
+        rationale: z.string().describe("예상 점수 근거"),
+        strategy: z.string().describe("점수를 높이기 위한 제안서 작성 포인트"),
       }),
     ),
+    technical_max: z.number().nullable(),
+    technical_expected: z.number().nullable(),
+    passing_threshold: z.string().describe("협상적격자 기준 등 통과 기준 (예: 기술평가 85% 이상)"),
     price_max: z.number().nullable(),
-    price_note: z.string(),
+    price_expected: z.number().nullable(),
+    price_strategy: z.string().describe("가격 평가 방식과 권장 투찰 전략(투찰률 범위 등)"),
+    credibility_items: z
+      .array(
+        z.object({
+          item: z.string().describe("신인도·경영상태 항목 (신용등급, 인증 가점, 제재 감점 등)"),
+          criteria: z.string(),
+          max_points: z.number().nullable(),
+          expected_points: z.number().nullable().describe("감점은 음수"),
+          verdict,
+          note: z.string(),
+        }),
+      )
+      .describe("신인도·경영상태 항목별 예상 점수"),
     credibility_adjustment: z.number().nullable().describe("신인도 가감점 합계"),
-    total_expected: z.number().nullable().describe("기술+가격+신인도 예상 총점"),
+    total_expected: z.number().nullable(),
     total_max: z.number().nullable(),
     competitiveness: z.string().describe("예상 점수 기준 경쟁력 의견"),
   }),
   fit: z.object({
     score: z.number().describe("당사 적합도 0~100"),
     grade: z.enum(["A", "B", "C", "D"]),
+    breakdown: z
+      .array(z.object({ factor: z.string(), score: z.number().describe("0~100"), comment: z.string() }))
+      .describe("요소별 적합도: 참가자격, 기술역량, 유사실적, 투입인력, 사업규모 적정성, 수익성, 일정 여유, 리스크 수준"),
     strengths: z.array(z.string()),
     weaknesses: z.array(z.string()),
   }),
-  cautions: z.array(
+  competition: z.object({
+    intensity: severity.describe("예상 경쟁 강도"),
+    expected_competitors: z.string().describe("예상 경쟁사 유형·특성 (추정임을 명시)"),
+    note: z.string(),
+  }),
+  risks: z.array(
     z.object({
+      category: z.string().describe("실격·감점 / 계약조건 / 수행 / 재무 / 보안 / 일정 등"),
       title: z.string(),
       detail: z.string(),
-      severity: z.enum(["high", "medium", "low"]),
+      severity,
+      mitigation: z.string().describe("대응 방안"),
     }),
   ),
   required_documents: z
@@ -238,19 +307,22 @@ export const AnalysisSchema = z.object({
       z.object({
         name: z.string(),
         stage: z.enum(["입찰참가", "제안서제출", "적격심사", "계약", "기타"]),
-        company_doc_category: z
-          .string()
-          .describe("회사 서류함 분류 키 (biz_reg, credit, performance 등) 또는 none"),
+        company_doc_category: z.string().describe("회사 서류함 분류 키 또는 none"),
         have: z.enum(["yes", "no", "unknown"]),
         note: z.string(),
       }),
     )
-    .describe("이 입찰에 제출해야 하는 서류와 당사 보유 여부"),
-  missing_company_info: z
-    .array(z.string())
-    .describe("정확한 판정을 위해 당사가 추가로 등록해야 할 서류·정보"),
+    .describe("제출 서류와 당사 보유 여부"),
+  missing_company_info: z.array(z.string()).describe("정확한 판정을 위해 당사가 추가로 등록해야 할 서류·정보"),
+  strategy: z.object({
+    win_themes: z.array(z.string()).describe("제안 핵심 메시지(수주 전략 테마)"),
+    differentiators: z.array(z.string()).describe("경쟁사 대비 차별화 포인트"),
+    consortium: z.string().describe("공동수급·하도급 필요 여부와 파트너 요건"),
+    questions_to_client: z.array(z.string()).describe("발주처 질의(입찰 전 질의응답) 권장 사항"),
+  }),
+  action_items: z.array(z.object({ task: z.string(), owner_hint: z.string(), due: z.string() })).describe("참여 시 다음 할 일"),
   recommendation: z.enum(["go", "conditional", "no_go"]),
-  opinion_md: z.string().describe("검토 의견서 (마크다운). 결론, 근거, 리스크, 권고 조치 순"),
+  opinion_md: z.string().describe("검토 의견서 (마크다운): 결론, 판단 근거, 리스크, 권고 조치"),
 });
 export type AnalysisResult = z.infer<typeof AnalysisSchema>;
 

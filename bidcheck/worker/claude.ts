@@ -20,7 +20,8 @@ export interface Env {
   /** 선택: Cloudflare AI Gateway 등 프록시 주소 */
   ANTHROPIC_BASE_URL?: string;
   G2B_SERVICE_KEY?: string;
-  APP_PASSWORD?: string;
+  RESEND_API_KEY?: string;
+  MAIL_FROM?: string;
   G2B_API_BASE: string;
   CLAUDE_MODEL: string;
 }
@@ -118,6 +119,7 @@ async function bidBlocks(env: Env, bid: Bid): Promise<BetaContentBlockParam[]> {
     .bind(bid.id)
     .all<SourceFile & { kind: FileKind }>();
 
+  const raw = bid.raw_json ? (JSON.parse(bid.raw_json) as { _extra?: { licenses: string[]; regions: string[] } | null }) : null;
   const meta = {
     공고번호: `${bid.bid_no}-${bid.bid_ord}`,
     구분: bid.category,
@@ -131,7 +133,9 @@ async function bidBlocks(env: Env, bid: Bid): Promise<BetaContentBlockParam[]> {
     배정예산: bid.budget,
     계약방법: bid.contract_method,
     낙찰방법: bid.award_method,
-    나라장터원본: bid.raw_json ? JSON.parse(bid.raw_json) : null,
+    면허업종제한: raw?._extra?.licenses ?? "(조회 안 됨)",
+    참가가능지역: raw?._extra?.regions ?? "(조회 안 됨)",
+    나라장터원본: raw,
   };
   const blocks: BetaContentBlockParam[] = [
     { type: "text", text: `<bid_notice_metadata>\n${JSON.stringify(meta, null, 1)}\n</bid_notice_metadata>` },
@@ -145,19 +149,21 @@ async function bidBlocks(env: Env, bid: Bid): Promise<BetaContentBlockParam[]> {
   return blocks;
 }
 
-const ANALYSIS_SYSTEM = `당신은 대한민국 공공조달(나라장터) 입찰 전문 컨설턴트로서 "당사"의 입찰 참여 여부를 검토합니다.
-입력: 당사 프로필과 회사 서류, 그리고 입찰공고 메타데이터와 첨부(입찰공고문, 제안요청서, 과업지시서 등).
+const ANALYSIS_SYSTEM = `당신은 대한민국 공공조달(나라장터) 입찰 전문 컨설턴트로서 "당사"의 입찰 참여 여부를 검토하고 결과보고서를 작성합니다.
+입력: 당사 프로필과 회사 서류, 입찰공고 메타데이터(면허·지역 제한 포함), 첨부(입찰공고문, 제안요청서, 과업지시서 등).
 
-검토 원칙
-- 근거는 첨부 문서와 당사 자료에서만 찾고, 근거 위치(문서명·조항)를 적습니다. 문서에 없는 내용은 관련 법령·조달청 기준(국가계약법 시행령, 협상에 의한 계약 제안서평가 세부기준, 적격심사 세부기준 등)의 일반 기준이라고 명시합니다.
+작성 원칙
+- 근거는 첨부 문서와 당사 자료에서 찾고 위치(문서명·조항)를 적습니다. 문서에 없는 내용은 관련 법령·조달청 기준(국가계약법 시행령, 협상에 의한 계약 제안서평가 세부기준, 적격심사 세부기준 등)의 일반 기준이라고 명시합니다.
 - 당사 자료로 확인되지 않으면 추측하지 말고 verdict 를 "unknown" 으로 두고, 무엇을 등록하면 확인되는지 action_needed 와 missing_company_info 에 적습니다.
-- 입찰참가자격: 업종·면허 제한, 지역 제한, 중소기업/소상공인 제한, 직접생산확인, 실적 제한, 공동수급 허용 여부, 기술인력 요건 등을 빠짐없이 항목화합니다.
-- 신인도·경영상태: 평가기준표가 있으면 그 배점으로, 없으면 해당 계약방법의 통상 기준으로 항목별 최대점수와 당사 예상점수를 산정합니다(신용평가등급, 인증 가점, 고용/상생 가점, 제재·벌점 감점 등).
-- 점수화: 기술평가 항목별 배점과 당사 예상점수, 가격점수 산정 방식, 신인도 가감점을 합산해 예상 총점을 제시합니다. 확인 불가한 값은 null 로 두되, 가능한 범위에서 보수적으로 추정합니다.
-- 적합도(fit.score 0~100): 자격 충족 여부(미충족 시 30점 이하), 예상 점수 경쟁력, 당사 실적·인력과의 정합성, 사업 규모, 일정 여유, 리스크를 종합합니다. A(80+), B(65~79), C(50~64), D(50 미만).
-- 유의사항: 제출 기한, 서식 요건, 페이지 제한, 감점·실격 사유, 보안/하도급 제한, 공동수급 조건, 계약 특수조건 등 실무자가 놓치기 쉬운 항목을 심각도와 함께 정리합니다.
-- 제출서류: 단계별(입찰참가/제안서제출/적격심사/계약)로 정리하고, 회사 서류함 분류 키(${COMPANY_DOC_CATEGORIES.map((c) => c.key).join(", ")}, 해당 없으면 none)와 보유 여부를 표시합니다.
-- opinion_md: 경영진 보고용 검토 의견서. 결론(참여 권고/조건부/비권고)과 핵심 근거, 예상 점수, 리스크, 권고 조치 순으로 간결하게 작성합니다.
+- 참가자격: 업종·면허 제한, 지역 제한, 중소기업/소상공인 제한, 직접생산확인, 실적 제한, 공동수급 허용 여부, 기술인력 요건 등을 빠짐없이 항목화합니다.
+- 평가(evaluation): 기술평가 항목별 배점·당사 예상점수·근거·점수를 높일 제안서 작성 포인트, 협상적격 기준, 가격점수 산정 방식과 권장 투찰 전략, 신인도·경영상태 항목별 점수(평가기준표가 없으면 해당 계약방법의 통상 기준), 예상 총점을 제시합니다. 확인 불가한 값은 null 로 두고 가능한 범위에서 보수적으로 추정합니다.
+- 적합도(fit): 종합 점수 0~100 과 요소별 점수(참가자격, 기술역량, 유사실적, 투입인력, 사업규모 적정성, 수익성, 일정 여유, 리스크 수준 — 각 0~100, 높을수록 유리)를 매깁니다. 참가자격 미충족이면 종합 30점 이하. 등급 A(80+), B(65~79), C(50~64), D(50 미만).
+- 경쟁(competition): 사업 성격·규모로 볼 때 예상 경쟁 강도와 경쟁사 유형을 추정하되 추정임을 밝힙니다.
+- 리스크(risks): 실격·감점 사유, 제출 기한·서식·분량 요건, 계약 특수조건(지체상금, 하자보수, 지식재산권), 보안·하도급 제한, 수행·재무·일정 리스크를 심각도와 대응 방안과 함께 정리합니다.
+- 제출서류: 단계별로 정리하고 회사 서류함 분류 키(${COMPANY_DOC_CATEGORIES.map((c) => c.key).join(", ")}, 해당 없으면 none)와 보유 여부를 표시합니다.
+- 전략(strategy): 수주 전략 테마, 차별화 포인트, 공동수급 필요 여부와 파트너 요건, 발주처에 질의할 사항을 제안합니다.
+- action_items: 참여 시 해야 할 일을 담당(예: 영업, 기술, 관리)과 기한(공고 일정 기준)과 함께 나열합니다.
+- executive_summary 와 opinion_md 는 경영진 보고용으로 간결하게 씁니다. opinion_md 는 결론(참여 권고/조건부/비권고), 판단 근거, 리스크, 권고 조치 순입니다.
 모든 출력은 한국어로 작성합니다.`;
 
 type Emit = (e: { type: "status"; message: string } | { type: "delta"; text: string }) => void;
@@ -202,10 +208,25 @@ export async function analyzeBid(env: Env, bid: Bid, emit: Emit): Promise<{ resu
 }
 
 const PROPOSAL_SYSTEM = `당신은 공공 제안서 작성 전문가입니다. 당사가 나라장터 입찰에 제출할 기술제안서 초안을 마크다운으로 작성합니다.
-- 제안요청서에 제안서 목차·작성 지침이 있으면 그 목차와 순서를 그대로 따릅니다. 없으면 통상 목차(Ⅰ.제안 개요 Ⅱ.제안사 일반 Ⅲ.기술 부문 Ⅳ.사업관리 부문 Ⅴ.지원 부문)를 사용합니다.
-- 평가 항목별 배점이 높은 부분에 분량과 구체성을 더 배분하고, 각 장 첫머리에 대응 평가항목을 주석(> 평가항목: …)으로 표시합니다.
+
+구성
+- 제안요청서에 제안서 목차·작성 지침이 있으면 그 목차와 순서를 그대로 따릅니다. 없으면 Ⅰ.제안 개요 Ⅱ.제안사 일반 Ⅲ.기술 부문 Ⅳ.사업관리 부문 Ⅴ.지원 부문 을 씁니다.
+- 각 장 첫머리에 대응 평가항목과 배점을 "> 평가항목: …" 으로 표시하고, 배점이 높은 항목일수록 분량과 구체성을 더 배분합니다.
+- 각 장마다 핵심 메시지를 "> 💡 핵심 메시지: …" 한 줄로 먼저 제시합니다.
+- 제안요청서의 요구사항(요구사항 ID가 있으면 ID 포함)은 하나도 빠짐없이 대응합니다. 문서 끝에 "요구사항 대응표"(요구사항 ID / 요구사항 / 제안 내용 / 해당 장 / 대응 수준[충족·초과]) 표를 반드시 넣습니다.
+- 마지막 장으로 "추가 제언"을 넣어, 요구사항 외에 발주처에 가치를 더할 수 있는 제안(고도화 방향, 운영 효율화, 리스크 예방, 유지관리 등)을 제시합니다.
+
+인포그래픽 (적극 사용)
+- 표: 마크다운 표로 비교·일정·인력·산출물 등을 정리합니다.
+- 다이어그램: \`\`\`mermaid 코드 블록을 씁니다. 시스템 구성도·업무 흐름(flowchart), 추진 조직(flowchart TD), 추진 일정(gantt), 단계별 방법론 등에 사용합니다.
+  mermaid 규칙: 노드 글자는 반드시 큰따옴표로 감쌉니다(예: A["데이터 수집"] --> B["분석"]). gantt 의 dateFormat 은 YYYY-MM-DD, 작업명에 콜론(:)을 쓰지 않습니다.
+- 차트: \`\`\`chart 코드 블록에 JSON 한 개를 씁니다.
+  형식: {"type":"bar"|"line"|"pie"|"radar","title":"제목","xKey":"name","series":[{"key":"value","name":"계열명"}],"data":[{"name":"항목","value":10}]}
+  pie 는 data 의 name/value 만 사용합니다. 기대효과(개선 전후 비교), 인력 투입 비율, 평가항목 배점 비중, 품질 목표 등에 사용합니다.
+- 장마다 최소 1개 이상의 표·다이어그램·차트를 넣되, 근거 없는 수치를 지어내지 말고 예시 수치는 "(예시)"로 표시합니다.
+
+사실 정보
 - 당사 실적·인력·인증 등 사실 정보는 제공된 당사 자료에서만 인용합니다. 자료가 없는 부분은 지어내지 말고 【작성 필요: 무엇을 넣어야 하는지】로 표시합니다.
-- 과업 범위의 요구사항을 빠짐없이 반영하고, 마지막에 "요구사항 대응표"(요구사항 / 제안 내용 / 해당 장) 표를 붙입니다.
 - 공공 제안서 문체(개조식, 명확한 수치와 근거)로 작성합니다.`;
 
 export async function draftProposal(
@@ -231,7 +252,7 @@ export async function draftProposal(
 
   const stream = client(env).beta.messages.stream({
     model: env.CLAUDE_MODEL,
-    max_tokens: 64000,
+    max_tokens: 100000,
     betas: BETAS,
     fallbacks: "default",
     thinking: { type: "adaptive" },

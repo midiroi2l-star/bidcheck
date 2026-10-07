@@ -1,37 +1,44 @@
 import clsx from "clsx";
-import { ArrowLeft, ExternalLink, Rocket, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, FileText, Rocket, Send, Sparkles, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   BID_STATUSES,
+  STATUS_DESC,
   STATUS_LABEL,
   type AnalysisRecord,
   type Bid,
   type BidFile,
   type BidStatus,
+  type Comment,
+  type G2BNotice,
   type HistoryEntry,
   type Proposal,
 } from "../../shared/types";
 import { AnalysisView } from "../components/AnalysisView";
 import { BidFiles } from "../components/BidFiles";
+import { NoticeAttachments, NoticeFields } from "../components/NoticeInfo";
 import { ProposalPanel } from "../components/ProposalPanel";
-import { Button, Card, DDay, ErrorBox, RecBadge, ScoreBadge, Spinner, StatusBadge, inputCls, inputBase } from "../components/ui";
+import { Button, Card, DDay, ErrorBox, RecBadge, ScoreBadge, Spinner, StatusBadge, inputBase, inputCls } from "../components/ui";
 import { api } from "../lib/api";
 import { shortDt, utcToKst, won } from "../lib/format";
+import { useMe } from "../lib/me";
 import { useAsync } from "../lib/useAsync";
 
 export interface BidDetailData {
   bid: Bid;
+  notice: G2BNotice | null;
   files: BidFile[];
   analyses: AnalysisRecord[];
   proposals: Proposal[];
   history: HistoryEntry[];
+  comments: Comment[];
 }
 
 const TABS = [
-  { key: "overview", label: "개요" },
+  { key: "overview", label: "공고 개요" },
   { key: "files", label: "첨부파일" },
-  { key: "analysis", label: "AI 분석" },
+  { key: "analysis", label: "결과보고서" },
   { key: "proposal", label: "제안서 초안" },
   { key: "history", label: "히스토리" },
 ] as const;
@@ -42,45 +49,45 @@ export default function BidDetail() {
   const nav = useNavigate();
   const [sp, setSp] = useSearchParams();
   const tab = (sp.get("tab") as Tab) || "overview";
-  const setTab = (t: Tab) => setSp({ tab: t }, { replace: true });
+  const auto = sp.get("auto") === "1";
+  const setTab = (t: Tab, extra?: Record<string, string>) => setSp({ tab: t, ...extra }, { replace: true });
   const { data, error, loading, reload } = useAsync(() => api.get<BidDetailData>(`/bids/${id}`), [id]);
+  const users = useAsync(() => api.get<{ id: string; name: string }[]>("/users"), []);
   const [err, setErr] = useState<unknown>(null);
-  const [autoDraft, setAutoDraft] = useState(false);
 
   if (loading && !data) return <Spinner />;
   if (!data) return <ErrorBox error={error ?? "입찰을 찾을 수 없습니다."} />;
   const { bid } = data;
+  const hasReport = data.analyses.length > 0;
 
-  async function setStatus(s: BidStatus) {
+  async function patch(body: Record<string, unknown>) {
     setErr(null);
     try {
-      await api.send("PATCH", `/bids/${id}`, { status: s });
-      if (s === "in_progress" && data && data.proposals.length === 0) {
-        // 입찰 진행으로 승격하면 제안서 초안 작성을 바로 시작한다
-        setAutoDraft(true);
-        setTab("proposal");
-      }
+      await api.send("PATCH", `/bids/${id}`, body);
       reload();
     } catch (e) {
       setErr(e);
     }
   }
 
+  async function promote() {
+    await patch({ status: "in_progress" });
+    if (!data?.proposals.length && confirm("입찰 진행으로 바꿨습니다. 제안서 초안도 바로 작성할까요?")) setTab("proposal", { auto: "1" });
+  }
+
   async function remove() {
-    if (!confirm(`'${bid.title}' 입찰과 첨부·분석·제안서를 모두 삭제할까요?`)) return;
+    if (!confirm(`'${bid.title}' 입찰과 첨부·결과보고서·제안서를 모두 삭제할까요?`)) return;
     await api.send("DELETE", `/bids/${id}`);
     nav("/bids");
   }
 
-  const latest = data.analyses[0] ?? null;
-
   return (
     <div className="space-y-4">
-      <Link to="/bids" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800">
-        <ArrowLeft className="h-4 w-4" /> 목록
+      <Link to="/bids" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800 print:hidden">
+        <ArrowLeft className="h-4 w-4" /> 입찰 관리
       </Link>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm print:hidden">
         <div className="flex flex-wrap items-start gap-4">
           <ScoreBadge score={bid.fit_score} />
           <div className="min-w-0 flex-1">
@@ -95,38 +102,56 @@ export default function BidDetail() {
             <h1 className="mt-1 text-lg font-bold text-slate-900">{bid.title}</h1>
             <div className="mt-1 text-sm text-slate-600">
               {bid.org}
-              {bid.demand_org && bid.demand_org !== bid.org && ` / ${bid.demand_org}`} · {won(bid.est_price ?? bid.budget)} · 마감{" "}
-              {shortDt(bid.close_dt)}
+              {bid.demand_org && bid.demand_org !== bid.org && ` / ${bid.demand_org}`} · {won(bid.est_price ?? bid.budget)} · 마감 {shortDt(bid.close_dt)}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {(bid.status === "interest" || bid.status === "analyzed") && (
-              <Button onClick={() => setStatus("in_progress")}>
-                <Rocket className="h-4 w-4" /> 입찰 진행으로 승격
+          <div className="flex flex-wrap items-center gap-2">
+            <Button onClick={() => setTab("analysis", hasReport ? {} : { auto: "1" })}>
+              <Sparkles className="h-4 w-4" /> {hasReport ? "결과보고서" : "적합도 분석"}
+            </Button>
+            {hasReport && (
+              <Button variant="secondary" onClick={() => setTab("proposal", data.proposals.length ? {} : { auto: "1" })}>
+                <FileText className="h-4 w-4" /> 제안서 초안 작성
               </Button>
             )}
-            <select
-              className={`${inputBase} w-auto`}
-              value={bid.status}
-              onChange={(e) => setStatus(e.target.value as BidStatus)}
-              aria-label="상태 변경"
-            >
+            {(bid.status === "interest" || bid.status === "analyzed") && (
+              <Button variant="secondary" onClick={promote}>
+                <Rocket className="h-4 w-4" /> 입찰 진행
+              </Button>
+            )}
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3 text-sm">
+          <label className="flex items-center gap-1.5">
+            <span className="text-slate-500">상태</span>
+            <select className={`${inputBase} w-auto py-1`} value={bid.status} title={STATUS_DESC[bid.status]} onChange={(e) => patch({ status: e.target.value as BidStatus })}>
               {BID_STATUSES.map((s) => (
                 <option key={s} value={s}>
                   {STATUS_LABEL[s]}
                 </option>
               ))}
             </select>
-            <Button variant="danger" onClick={remove} aria-label="삭제">
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+          </label>
+          <label className="flex items-center gap-1.5">
+            <span className="text-slate-500">담당자</span>
+            <select className={`${inputBase} w-auto py-1`} value={bid.assignee ?? ""} onChange={(e) => patch({ assignee: e.target.value || null })}>
+              <option value="">미지정</option>
+              {users.data?.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="text-xs text-slate-400">{STATUS_DESC[bid.status]}</span>
+          <Button variant="ghost" size="sm" className="ml-auto text-red-600" onClick={remove}>
+            <Trash2 className="h-4 w-4" /> 삭제
+          </Button>
         </div>
+        <ErrorBox error={err} />
       </div>
 
-      <ErrorBox error={err} />
-
-      <div className="flex gap-1 overflow-x-auto border-b border-slate-200">
+      <div className="flex gap-1 overflow-x-auto border-b border-slate-200 print:hidden">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -138,33 +163,28 @@ export default function BidDetail() {
           >
             {t.label}
             {t.key === "files" && ` (${data.files.length})`}
+            {t.key === "analysis" && hasReport && ` (${data.analyses.length})`}
             {t.key === "proposal" && data.proposals.length > 0 && ` (v${data.proposals[0].version})`}
           </button>
         ))}
       </div>
 
-      {tab === "overview" && <Overview data={data} onMemo={reload} onGo={setTab} />}
+      {tab === "overview" && <Overview data={data} onChange={reload} onGo={setTab} />}
       {tab === "files" && <BidFiles bid={bid} files={data.files} onChange={reload} />}
-      {tab === "analysis" && <AnalysisView bid={bid} analyses={data.analyses} hasFiles={data.files.length > 0} onDone={reload} />}
+      {tab === "analysis" && <AnalysisView bid={bid} files={data.files} analyses={data.analyses} autoStart={auto} onDone={reload} />}
       {tab === "proposal" && (
-        <ProposalPanel
-          bid={bid}
-          proposals={data.proposals}
-          hasAnalysis={!!latest}
-          autoStart={autoDraft}
-          onAutoStarted={() => setAutoDraft(false)}
-          onChange={reload}
-        />
+        <ProposalPanel bid={bid} files={data.files} proposals={data.proposals} hasAnalysis={hasReport} autoStart={auto} onChange={reload} />
       )}
       {tab === "history" && (
         <Card>
           <ul className="space-y-2 text-sm">
             {data.history.map((h) => (
-              <li key={h.id} className="flex gap-3">
+              <li key={h.id} className="flex flex-wrap gap-x-3">
                 <span className="w-36 shrink-0 text-xs text-slate-400">{utcToKst(h.at)}</span>
                 <span>
                   <b className="font-medium">{h.action}</b>
                   {h.detail && <span className="text-slate-600"> · {h.detail}</span>}
+                  {h.user_name && <span className="text-xs text-slate-400"> — {h.user_name}</span>}
                 </span>
               </li>
             ))}
@@ -175,58 +195,55 @@ export default function BidDetail() {
   );
 }
 
-function Overview({ data, onMemo, onGo }: { data: BidDetailData; onMemo: () => void; onGo: (t: Tab) => void }) {
+function Overview({ data, onChange, onGo }: { data: BidDetailData; onChange: () => void; onGo: (t: Tab, extra?: Record<string, string>) => void }) {
   const { bid } = data;
-  const [memo, setMemo] = useState(bid.memo ?? "");
-  const [saving, setSaving] = useState(false);
-  useEffect(() => setMemo(bid.memo ?? ""), [bid.memo]);
+  const raw = (() => {
+    try {
+      return bid.raw_json ? (JSON.parse(bid.raw_json) as Record<string, unknown> & { _attachments?: { name: string; url: string }[]; _extra?: G2BNotice["extra"] }) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const attachments = raw?._attachments ?? [];
   const latest = data.analyses[0];
 
-  const rows: [string, React.ReactNode][] = [
-    ["공고번호", `${bid.bid_no}-${bid.bid_ord}`],
-    ["공고기관", bid.org],
-    ["수요기관", bid.demand_org],
-    ["공고일시", shortDt(bid.notice_dt)],
-    ["입찰마감", shortDt(bid.close_dt)],
-    ["개찰일시", shortDt(bid.open_dt)],
-    ["추정가격", won(bid.est_price)],
-    ["배정예산", won(bid.budget)],
-    ["계약방법", bid.contract_method],
-    ["낙찰방법", bid.award_method],
-  ];
-
   const steps = [
-    { done: data.files.length > 0, label: "제안요청서·공고문 첨부", tab: "files" as Tab },
-    { done: data.analyses.length > 0, label: "AI 분석 (적합도·자격·신인도)", tab: "analysis" as Tab },
-    { done: ["in_progress", "submitted", "won", "lost"].includes(bid.status), label: "입찰 진행으로 승격", tab: "overview" as Tab },
+    { done: data.files.length > 0, label: "제안요청서·공고문 확보", tab: "files" as Tab },
+    { done: data.analyses.length > 0, label: "적합도 분석 → 결과보고서", tab: "analysis" as Tab },
+    { done: ["in_progress", "submitted", "won", "lost"].includes(bid.status), label: "참여 결정 (입찰 진행)", tab: "overview" as Tab },
     { done: data.proposals.length > 0, label: "제안서 초안 작성", tab: "proposal" as Tab },
+    { done: ["submitted", "won", "lost"].includes(bid.status), label: "입찰·제안서 제출", tab: "overview" as Tab },
   ];
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
-      <Card title="공고 정보" className="lg:col-span-2" actions={bid.detail_url && (
-        <a href={bid.detail_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-brand-600">
-          나라장터에서 보기 <ExternalLink className="h-3 w-3" />
-        </a>
-      )}>
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-          {rows.map(([k, v]) => (
-            <div key={k} className="flex gap-3">
-              <dt className="w-20 shrink-0 text-slate-500">{k}</dt>
-              <dd className="text-slate-900">{v || "-"}</dd>
-            </div>
-          ))}
-        </dl>
+      <div className="space-y-4 lg:col-span-2">
         {latest && (
-          <div className="mt-4 rounded-md bg-slate-50 p-3 text-sm">
-            <div className="mb-1 font-medium">최근 분석 요약 ({utcToKst(latest.created_at)})</div>
-            <p className="text-slate-700">{latest.result.overview.purpose}</p>
-            <button className="mt-1 text-xs text-brand-600 underline" onClick={() => onGo("analysis")}>
-              분석 결과 보기
-            </button>
-          </div>
+          <Card title="결과보고서 요약" actions={<button className="text-xs text-brand-600 underline" onClick={() => onGo("analysis")}>전체 보기</button>}>
+            <p className="leading-7 text-slate-800">{latest.result.executive_summary}</p>
+            <p className="mt-2 text-xs text-slate-500">{utcToKst(latest.created_at)} 분석</p>
+          </Card>
         )}
-      </Card>
+        <Card title={`공고 첨부파일 (${attachments.length})`}>
+          <NoticeAttachments attachments={attachments} />
+          {data.files.length > 0 && (
+            <p className="mt-2 text-xs text-slate-500">
+              BidCheck 에 저장된 파일 {data.files.length}개는{" "}
+              <button className="text-brand-600 underline" onClick={() => onGo("files")}>
+                첨부파일 탭
+              </button>
+              에서 받을 수 있습니다.
+            </p>
+          )}
+        </Card>
+        {raw ? (
+          <NoticeFields notice={{ raw, extra: raw._extra ?? undefined }} />
+        ) : (
+          <Card title="공고 정보">
+            <p className="text-sm text-slate-500">수동 등록한 공고입니다.</p>
+          </Card>
+        )}
+      </div>
       <div className="space-y-4">
         <Card title="진행 단계">
           <ol className="space-y-2 text-sm">
@@ -235,7 +252,7 @@ function Overview({ data, onMemo, onGo }: { data: BidDetailData; onMemo: () => v
                 <button className="flex items-center gap-2 text-left" onClick={() => onGo(s.tab)}>
                   <span
                     className={clsx(
-                      "flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold",
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold",
                       s.done ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-600",
                     )}
                   >
@@ -246,29 +263,87 @@ function Overview({ data, onMemo, onGo }: { data: BidDetailData; onMemo: () => v
               </li>
             ))}
           </ol>
-          {!data.analyses.length && (
-            <Button className="mt-3 w-full" variant="secondary" onClick={() => onGo(data.files.length ? "analysis" : "files")}>
-              <Sparkles className="h-4 w-4" /> {data.files.length ? "분석 시작하기" : "첨부파일 등록하기"}
-            </Button>
-          )}
         </Card>
-        <Card title="메모">
-          <textarea className={`${inputCls} h-28`} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="영업 정보, 담당자 의견 등" />
-          <Button
-            size="sm"
-            className="mt-2"
-            loading={saving}
-            disabled={memo === (bid.memo ?? "")}
-            onClick={async () => {
-              setSaving(true);
-              await api.send("PATCH", `/bids/${bid.id}`, { memo }).finally(() => setSaving(false));
-              onMemo();
-            }}
-          >
-            저장
-          </Button>
-        </Card>
+        <Comments bidId={bid.id} comments={data.comments} onChange={onChange} />
+        <Memo bid={bid} onChange={onChange} />
       </div>
     </div>
+  );
+}
+
+function Comments({ bidId, comments, onChange }: { bidId: string; comments: Comment[]; onChange: () => void }) {
+  const me = useMe();
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <Card title={`팀 의견 (${comments.length})`}>
+      <ul className="max-h-80 space-y-3 overflow-y-auto text-sm">
+        {comments.map((c) => (
+          <li key={c.id}>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <b className="text-slate-700">{c.user_name ?? c.user_id ?? "?"}</b> {utcToKst(c.created_at)}
+              {(c.user_id === me?.id || me?.role === "admin") && (
+                <button
+                  className="ml-auto text-slate-400 hover:text-red-600"
+                  onClick={async () => {
+                    if (!confirm("이 의견을 삭제할까요?")) return;
+                    await api.send("DELETE", `/comments/${c.id}`);
+                    onChange();
+                  }}
+                >
+                  삭제
+                </button>
+              )}
+            </div>
+            <p className="mt-0.5 whitespace-pre-wrap">{c.body}</p>
+          </li>
+        ))}
+        {!comments.length && <li className="text-slate-400">참여 여부, 영업 정보 등을 팀과 공유하세요.</li>}
+      </ul>
+      <form
+        className="mt-3 flex gap-2"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!body.trim()) return;
+          setBusy(true);
+          try {
+            await api.send("POST", `/bids/${bidId}/comments`, { body });
+            setBody("");
+            onChange();
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <input className={inputCls} value={body} onChange={(e) => setBody(e.target.value)} placeholder="의견 남기기" />
+        <Button type="submit" size="sm" loading={busy} aria-label="등록">
+          <Send className="h-4 w-4" />
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
+function Memo({ bid, onChange }: { bid: Bid; onChange: () => void }) {
+  const [memo, setMemo] = useState(bid.memo ?? "");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setMemo(bid.memo ?? ""), [bid.memo]);
+  return (
+    <Card title="메모">
+      <textarea className={`${inputCls} h-24`} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="담당자 메모" />
+      <Button
+        size="sm"
+        className="mt-2"
+        loading={saving}
+        disabled={memo === (bid.memo ?? "")}
+        onClick={async () => {
+          setSaving(true);
+          await api.send("PATCH", `/bids/${bid.id}`, { memo }).finally(() => setSaving(false));
+          onChange();
+        }}
+      >
+        저장
+      </Button>
+    </Card>
   );
 }

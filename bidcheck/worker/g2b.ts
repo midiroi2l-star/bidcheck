@@ -101,30 +101,50 @@ export interface SearchParams {
   rows?: number;
 }
 
-export async function searchNotices(base: string, key: string, p: SearchParams) {
+/** 조회 기간 안의 공고를 여러 페이지에 걸쳐 가져온다 (최대 maxPages × 100건) */
+export async function searchNotices(base: string, key: string, p: SearchParams, maxPages = 5) {
   const params: Record<string, string> = {
     inqryDiv: "1",
     inqryBgnDt: toG2BDate(p.from, false),
     inqryEndDt: toG2BDate(p.to, true),
-    pageNo: String(p.page ?? 1),
-    numOfRows: String(p.rows ?? 50),
+    numOfRows: "100",
   };
   if (p.keyword) params.bidNtceNm = p.keyword;
   if (p.org) params.ntceInsttNm = p.org;
-  const { items, totalCount } = await call(
-    base,
-    `getBidPblancListInfo${OP_SUFFIX[p.category]}PPSSrch`,
-    key,
-    params,
-  );
+  const op = `getBidPblancListInfo${OP_SUFFIX[p.category]}PPSSrch`;
+  const all: Item[] = [];
+  let totalCount = 0;
+  for (let page = 1; page <= maxPages; page++) {
+    const r = await call(base, op, key, { ...params, pageNo: String(page) });
+    totalCount = r.totalCount;
+    all.push(...r.items);
+    if (all.length >= totalCount || r.items.length === 0) break;
+  }
   // 같은 공고의 여러 차수가 오면 최신 차수만 남긴다
   const latest = new Map<string, G2BNotice>();
-  for (const it of items) {
+  for (const it of all) {
     const n = normalize(it, p.category);
     const prev = latest.get(n.bidNo);
     if (!prev || prev.bidOrd < n.bidOrd) latest.set(n.bidNo, n);
   }
-  return { items: [...latest.values()], totalCount };
+  return { items: [...latest.values()], totalCount, truncated: all.length < totalCount };
+}
+
+/** 면허(업종) 제한·참가가능지역 등 부가 정보. 실패해도 상세 화면은 열리도록 빈 값 반환 */
+export async function noticeExtras(base: string, key: string, bidNo: string) {
+  const get = async (op: string, pick: (i: Item) => string | null) => {
+    try {
+      const { items } = await call(base, op, key, { inqryDiv: "2", bidNtceNo: bidNo, pageNo: "1", numOfRows: "50" });
+      return [...new Set(items.filter((i) => str(i.bidNtceNo) === bidNo).map(pick).filter((v): v is string => !!v))];
+    } catch {
+      return [];
+    }
+  };
+  const [licenses, regions] = await Promise.all([
+    get("getBidPblancListInfoLicenseLimit", (i) => str(i.lcnsLmtNm) ?? str(i.permsnIndstrytyList)),
+    get("getBidPblancListInfoPrtcptPsblRgn", (i) => str(i.prtcptPsblRgnNm)),
+  ]);
+  return { licenses, regions };
 }
 
 /** 공고번호로 단건 조회. 오퍼레이션별 조회구분 차이가 있어 몇 가지 방식을 차례로 시도한다. */
@@ -149,7 +169,17 @@ export async function lookupNotice(base: string, key: string, bidNo: string, cat
 }
 
 /** 공고 첨부파일을 서버에서 내려받는다. 파일명은 Content-Disposition 우선. */
+export function isG2BFileUrl(url: string) {
+  try {
+    const u = new URL(url);
+    return (u.protocol === "https:" || u.protocol === "http:") && (u.hostname === "g2b.go.kr" || u.hostname.endsWith(".g2b.go.kr"));
+  } catch {
+    return false;
+  }
+}
+
 export async function downloadAttachment(url: string, fallbackName: string) {
+  if (!isG2BFileUrl(url)) throw new Error("나라장터 주소가 아닙니다");
   const res = await fetch(url, {
     headers: { "User-Agent": "Mozilla/5.0 (bidcheck)", Referer: "https://www.g2b.go.kr/" },
     redirect: "follow",

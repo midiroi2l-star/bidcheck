@@ -9,6 +9,8 @@
     "run_worker_first": ["/api/*"]
   },
   "observability": { "enabled": true },
+  // 매일 한국시간 07:30 저장 검색 자동 실행 (추천 공고)
+  "triggers": { "crons": ["30 22 * * *"] },
   // D1: `npx wrangler d1 create bidcheck` 실행 후 출력되는 database_id 로 교체하세요.
   "d1_databases": [
     {
@@ -24,8 +26,6 @@
     "G2B_API_BASE": "https://apis.data.go.kr/1230000/ad/BidPublicInfoService",
     "CLAUDE_MODEL": "claude-opus-5-5"
   }
-  // 비밀값(secret)은 `npx wrangler secret put <이름>` 으로 등록:
-  //   ANTHROPIC_API_KEY  - Claude API 키
-  //   G2B_SERVICE_KEY    - 공공데이터포털 조달청 입찰공고정보서비스 인증키(Decoding 키)
-  //   APP_PASSWORD       - 웹 접속 비밀번호(사내 공유용)
+  // API 키는 웹 [설정] 화면에서 입력한다 (D1 에 저장).
+  // 원하면 `npx wrangler secret put ANTHROPIC_API_KEY` 등 Cloudflare 비밀값으로 넣어도 되며, 그 값이 우선한다.
 }

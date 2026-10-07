@@ -1,19 +1,22 @@
 import type { StreamEvent } from "../../shared/types";
 
-const PW_KEY = "bidcheck.password";
+const TOKEN_KEY = "bidcheck.token";
+let memToken = "";
 
-export function getPassword() {
+export function getToken() {
   try {
-    return localStorage.getItem(PW_KEY) ?? "";
+    return localStorage.getItem(TOKEN_KEY) ?? memToken;
   } catch {
-    return "";
+    return memToken;
   }
 }
-export function setPassword(pw: string) {
+export function setToken(t: string) {
+  memToken = t;
   try {
-    localStorage.setItem(PW_KEY, pw);
+    if (t) localStorage.setItem(TOKEN_KEY, t);
+    else localStorage.removeItem(TOKEN_KEY);
   } catch {
-    /* 저장 불가 환경 */
+    /* 저장 불가 환경에서는 메모리에만 보관 */
   }
 }
 
@@ -28,21 +31,24 @@ export class ApiError extends Error {
 
 function headers(extra?: HeadersInit): Headers {
   const h = new Headers(extra);
-  const pw = getPassword();
-  if (pw) h.set("Authorization", `Bearer ${pw}`);
+  const t = getToken();
+  if (t) h.set("Authorization", `Bearer ${t}`);
   return h;
 }
 
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let msg = `요청 실패 (HTTP ${res.status})`;
+    let mustChange = false;
     try {
-      const j = (await res.json()) as { error?: string };
+      const j = (await res.json()) as { error?: string; mustChange?: boolean };
       if (j.error) msg = j.error;
+      mustChange = !!j.mustChange;
     } catch {
       /* 본문 없음 */
     }
     if (res.status === 401) window.dispatchEvent(new Event("bidcheck:unauthorized"));
+    if (mustChange) window.dispatchEvent(new Event("bidcheck:mustchange"));
     throw new ApiError(msg, res.status);
   }
   return res.json() as Promise<T>;

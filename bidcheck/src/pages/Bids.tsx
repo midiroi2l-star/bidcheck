@@ -1,137 +1,131 @@
-import { Download, Plus, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import clsx from "clsx";
+import { FileCheck2, FileText, Plus } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { BID_CATEGORIES, BID_STATUSES, STATUS_LABEL, type AnalysisResult, type Bid } from "../../shared/types";
-import { Button, Card, DDay, ErrorBox, Field, RecBadge, ScoreBadge, Spinner, StatusBadge, inputCls, inputBase } from "../components/ui";
+import { BID_CATEGORIES, BID_STATUSES, STATUS_DESC, type Bid, type BidStatus } from "../../shared/types";
+import { Button, Card, DDay, ErrorBox, Field, RecBadge, ScoreBadge, Spinner, StatusBadge, inputBase, inputCls } from "../components/ui";
 import { api } from "../lib/api";
-import { exportBids, parseImport } from "../lib/excel";
-import { shortDt, won } from "../lib/format";
+import { useMe } from "../lib/me";
+import { parseDt, shortDt, utcToKst, won } from "../lib/format";
+import { SortTh, useSort } from "../lib/sort";
 import { useAsync } from "../lib/useAsync";
 
+type Row = Bid & { assignee_name: string | null; analysis_count: number; proposal_count: number };
+
+/** 상태 묶음 탭: 진행 단계별로 보기 */
+const TABS: { key: string; label: string; statuses: BidStatus[] | null; hint: string }[] = [
+  { key: "all", label: "전체", statuses: null, hint: "" },
+  { key: "interest", label: "관심", statuses: ["interest"], hint: STATUS_DESC.interest },
+  { key: "report", label: "결과서", statuses: ["analyzed"], hint: STATUS_DESC.analyzed },
+  { key: "progress", label: "입찰진행", statuses: ["in_progress"], hint: STATUS_DESC.in_progress },
+  { key: "submitted", label: "제출·결과대기", statuses: ["submitted"], hint: STATUS_DESC.submitted },
+  { key: "closed", label: "종료(낙찰·탈락·미참여)", statuses: ["won", "lost", "dropped"], hint: "결과가 확정된 입찰" },
+];
+
 export default function Bids() {
+  const me = useMe();
   const [params, setParams] = useSearchParams();
-  const status = params.get("status") ?? "";
-  const { data, error, loading, reload } = useAsync(() => api.get<Bid[]>(`/bids${status ? `?status=${status}` : ""}`), [status]);
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<unknown>(null);
-  const [busy, setBusy] = useState<"export" | "import" | null>(null);
+  const tab = params.get("tab") ?? "all";
+  const { data, error, loading } = useAsync(() => api.get<Row[]>("/bids"), []);
   const [q, setQ] = useState("");
+  const [mine, setMine] = useState(false);
+  const [hasReport, setHasReport] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
-  const rows = (data ?? []).filter((b) => !q || `${b.title} ${b.org} ${b.demand_org} ${b.id}`.includes(q));
+  const counts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const t of TABS) m[t.key] = (data ?? []).filter((b) => !t.statuses || t.statuses.includes(b.status)).length;
+    return m;
+  }, [data]);
 
-  async function doExport() {
-    setBusy("export");
-    setErr(null);
-    try {
-      const all = await api.get<(Bid & { analysis: AnalysisResult | null })[]>(
-        `/bids?withAnalysis=1${status ? `&status=${status}` : ""}`,
-      );
-      await exportBids(all);
-    } catch (e) {
-      setErr(e);
-    } finally {
-      setBusy(null);
-    }
-  }
+  const filtered = useMemo(() => {
+    const t = TABS.find((x) => x.key === tab) ?? TABS[0];
+    return (data ?? []).filter(
+      (b) =>
+        (!t.statuses || t.statuses.includes(b.status)) &&
+        (!q || `${b.title} ${b.org ?? ""} ${b.demand_org ?? ""} ${b.id}`.includes(q)) &&
+        (!mine || b.assignee === me?.id) &&
+        (!hasReport || b.analysis_count > 0),
+    );
+  }, [data, tab, q, mine, hasReport, me]);
 
-  async function doImport(file: File) {
-    setBusy("import");
-    setErr(null);
-    setMsg(null);
-    try {
-      const { rows } = await parseImport(file);
-      if (!rows.length) throw new Error("가져올 행이 없습니다.");
-      const res = await api.send<{ created: number; updated: number }>("POST", "/bids/import", { rows });
-      setMsg(`엑셀 가져오기 완료: 신규 ${res.created}건, 갱신 ${res.updated}건`);
-      reload();
-    } catch (e) {
-      setErr(e);
-    } finally {
-      setBusy(null);
-      if (fileRef.current) fileRef.current.value = "";
-    }
-  }
+  const { sorted, sort, toggle } = useSort(
+    filtered,
+    {
+      title: (b) => b.title,
+      fit: (b) => b.fit_score,
+      org: (b) => b.demand_org || b.org,
+      amount: (b) => b.est_price ?? b.budget,
+      close: (b) => parseDt(b.close_dt)?.getTime(),
+      status: (b) => BID_STATUSES.indexOf(b.status),
+      updated: (b) => b.updated_at,
+    },
+    { key: "updated", dir: "desc" },
+  );
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-bold text-slate-900">관심·진행 입찰</h1>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => setShowAdd((v) => !v)}>
-            <Plus className="h-4 w-4" /> 수동 등록
-          </Button>
-          <Button variant="secondary" onClick={() => fileRef.current?.click()} loading={busy === "import"}>
-            <Upload className="h-4 w-4" /> 기존 엑셀 가져오기
-          </Button>
-          <input ref={fileRef} type="file" accept=".xlsx" hidden onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])} />
-          <Button onClick={doExport} loading={busy === "export"}>
-            <Download className="h-4 w-4" /> 엑셀 다운로드
-          </Button>
-        </div>
+        <h1 className="text-xl font-bold text-slate-900">입찰 관리</h1>
+        <Button variant="secondary" onClick={() => setShowAdd((v) => !v)}>
+          <Plus className="h-4 w-4" /> 수동 등록
+        </Button>
       </div>
 
       {showAdd && <ManualAdd onDone={() => setShowAdd(false)} />}
-      {msg && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</div>}
-      <ErrorBox error={err || error} />
+      <ErrorBox error={error} />
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        {["", ...BID_STATUSES].map((s) => (
+      <div className="flex flex-wrap gap-1.5">
+        {TABS.map((t) => (
           <button
-            key={s}
-            onClick={() => setParams(s ? { status: s } : {})}
-            className={`rounded-full px-3 py-1 text-xs font-medium ${status === s ? "bg-brand-700 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"}`}
+            key={t.key}
+            title={t.hint}
+            onClick={() => setParams(t.key === "all" ? {} : { tab: t.key })}
+            className={clsx(
+              "rounded-full px-3 py-1 text-xs font-medium",
+              tab === t.key ? "bg-brand-700 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50",
+            )}
           >
-            {s ? STATUS_LABEL[s as keyof typeof STATUS_LABEL] : "전체"}
+            {t.label} <span className="ml-0.5 opacity-70">{counts[t.key] ?? 0}</span>
           </button>
         ))}
-        <input className={`${inputBase} ml-auto w-56`} placeholder="공고명·기관 검색" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <input className={`${inputBase} w-64`} placeholder="공고명·기관·공고번호 검색" value={q} onChange={(e) => setQ(e.target.value)} />
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} /> 내 담당만
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={hasReport} onChange={(e) => setHasReport(e.target.checked)} /> 결과서 있는 공고만
+        </label>
       </div>
 
       <Card>
         {loading && !data ? (
           <Spinner />
-        ) : rows.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <p className="text-sm text-slate-500">
-            등록된 입찰이 없습니다. <Link to="/search" className="text-brand-600 underline">공고 검색</Link>에서 관심 입찰을 추가하거나, 기존에 관리하던 엑셀을 가져오세요.
+            해당하는 입찰이 없습니다. <Link to="/search" className="text-brand-600 underline">공고 검색</Link>에서 관심 공고를 등록하세요.
           </p>
         ) : (
           <div className="-mx-4 overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
+            <table className="w-full min-w-[980px] text-sm">
               <thead className="border-b border-slate-200 text-left text-xs text-slate-500">
                 <tr>
-                  <th className="px-4 py-2">적합도</th>
-                  <th className="px-2 py-2">공고명</th>
-                  <th className="px-2 py-2">수요기관</th>
-                  <th className="px-2 py-2">금액</th>
-                  <th className="px-2 py-2">입찰마감</th>
-                  <th className="px-4 py-2">상태</th>
+                  <SortTh k="fit" label="적합도" sort={sort} toggle={toggle} className="pl-4" />
+                  <SortTh k="title" label="공고명" sort={sort} toggle={toggle} />
+                  <SortTh k="org" label="수요기관" sort={sort} toggle={toggle} />
+                  <SortTh k="amount" label="금액" sort={sort} toggle={toggle} />
+                  <SortTh k="close" label="입찰마감" sort={sort} toggle={toggle} />
+                  <SortTh k="status" label="상태" sort={sort} toggle={toggle} />
+                  <th className="px-2 py-2">담당</th>
+                  <SortTh k="updated" label="최근 수정" sort={sort} toggle={toggle} className="pr-4" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((b) => (
-                  <tr key={b.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-2">
-                      <ScoreBadge score={b.fit_score} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <Link to={`/bids/${b.id}`} className="font-medium text-slate-900 hover:text-brand-600">
-                        {b.title}
-                      </Link>
-                      <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-500">
-                        {b.category} · {b.id} <RecBadge rec={b.recommendation} />
-                      </div>
-                    </td>
-                    <td className="px-2 py-2 text-xs">{b.demand_org || b.org}</td>
-                    <td className="whitespace-nowrap px-2 py-2 tabular-nums">{won(b.est_price ?? b.budget)}</td>
-                    <td className="whitespace-nowrap px-2 py-2 text-xs">
-                      {shortDt(b.close_dt)} <DDay dt={b.close_dt} />
-                    </td>
-                    <td className="px-4 py-2">
-                      <StatusBadge status={b.status} />
-                    </td>
-                  </tr>
+                {sorted.map((b) => (
+                  <BidRow key={b.id} b={b} />
                 ))}
               </tbody>
             </table>
@@ -142,13 +136,51 @@ export default function Bids() {
   );
 }
 
+function BidRow({ b }: { b: Row }) {
+  const nav = useNavigate();
+  return (
+    <tr className="cursor-pointer hover:bg-brand-50/60" onClick={() => nav(`/bids/${b.id}`)}>
+      <td className="px-4 py-2">
+        <ScoreBadge score={b.fit_score} />
+      </td>
+      <td className="px-2 py-2">
+        <div className="font-medium text-slate-900">{b.title}</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          {b.category} · {b.id}
+          <RecBadge rec={b.recommendation} />
+          {b.analysis_count > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-indigo-600">
+              <FileCheck2 className="h-3 w-3" /> 결과서
+            </span>
+          )}
+          {b.proposal_count > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-amber-700">
+              <FileText className="h-3 w-3" /> 제안서
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="px-2 py-2 text-xs">{b.demand_org || b.org}</td>
+      <td className="whitespace-nowrap px-2 py-2 tabular-nums">{won(b.est_price ?? b.budget)}</td>
+      <td className="whitespace-nowrap px-2 py-2 text-xs">
+        {shortDt(b.close_dt)} <DDay dt={b.close_dt} />
+      </td>
+      <td className="px-2 py-2">
+        <StatusBadge status={b.status} />
+      </td>
+      <td className="whitespace-nowrap px-2 py-2 text-xs">{b.assignee_name ?? "-"}</td>
+      <td className="whitespace-nowrap px-4 py-2 text-xs text-slate-500">{utcToKst(b.updated_at).slice(0, 12)}</td>
+    </tr>
+  );
+}
+
 function ManualAdd({ onDone }: { onDone: () => void }) {
   const nav = useNavigate();
   const [f, setF] = useState({ bid_no: "", bid_ord: "000", category: "용역", title: "", org: "", close_dt: "", budget: "" });
   const [err, setErr] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   return (
-    <Card title="입찰 수동 등록" actions={<Button variant="ghost" size="sm" onClick={onDone}>닫기</Button>}>
+    <Card title="입찰 수동 등록 (나라장터 외 공고)" actions={<Button variant="ghost" size="sm" onClick={onDone}>닫기</Button>}>
       <form
         className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
         onSubmit={async (e) => {
@@ -201,3 +233,4 @@ function ManualAdd({ onDone }: { onDone: () => void }) {
     </Card>
   );
 }
+

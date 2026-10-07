@@ -1,25 +1,25 @@
-import { Download, FileDown, Pencil, Save, Sparkles } from "lucide-react";
+import { Download, FileDown, Pencil, Printer, Save, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { Bid, Proposal } from "../../shared/types";
+import type { Bid, BidFile, Proposal } from "../../shared/types";
 import { api, saveBlob } from "../lib/api";
-import { exportProposalDocx } from "../lib/docx";
 import { utcToKst } from "../lib/format";
-import { renderMarkdown } from "../lib/markdown";
-import { Button, Card, ErrorBox, inputCls, inputBase } from "./ui";
+import { ensureAttachments } from "./AnalysisView";
+import { RichMarkdown } from "./RichMarkdown";
+import { Button, Card, ErrorBox, inputBase, inputCls } from "./ui";
 
 export function ProposalPanel({
   bid,
+  files,
   proposals,
   hasAnalysis,
   autoStart,
-  onAutoStarted,
   onChange,
 }: {
   bid: Bid;
+  files: BidFile[];
   proposals: Proposal[];
   hasAnalysis: boolean;
-  autoStart: boolean;
-  onAutoStarted: () => void;
+  autoStart?: boolean;
   onChange: () => void;
 }) {
   const [selId, setSelId] = useState<string | null>(proposals[0]?.id ?? null);
@@ -31,7 +31,7 @@ export function ProposalPanel({
   const [live, setLive] = useState("");
   const [status, setStatus] = useState("");
   const [err, setErr] = useState<unknown>(null);
-  const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const started = useRef(false);
 
   useEffect(() => {
@@ -43,8 +43,9 @@ export function ProposalPanel({
     setRunning(true);
     setErr(null);
     setLive("");
-    setStatus("요청 중…");
     try {
+      await ensureAttachments(bid, files, setStatus);
+      setStatus("요청 중…");
       const res = await api.stream<{ id: string }>(`/bids/${bid.id}/proposal`, { instructions }, (e) => {
         if (e.type === "delta") setLive((s) => s + e.text);
         else if (e.type === "status" && e.message) setStatus(e.message);
@@ -59,9 +60,8 @@ export function ProposalPanel({
   }
 
   useEffect(() => {
-    if (autoStart && !started.current) {
+    if (autoStart && !started.current && !proposals.length) {
       started.current = true;
-      onAutoStarted();
       generate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -71,14 +71,11 @@ export function ProposalPanel({
 
   return (
     <div className="space-y-4">
-      <Card>
-        {bid.status === "interest" || bid.status === "analyzed" ? (
-          <p className="mb-3 text-sm text-slate-600">입찰 진행으로 승격하면 제안서 초안이 자동으로 작성됩니다. 지금 바로 작성할 수도 있습니다.</p>
-        ) : null}
-        {!hasAnalysis && <p className="mb-3 text-sm text-amber-700">AI 분석을 먼저 실행하면 평가항목·배점을 반영한 초안이 작성됩니다.</p>}
+      <Card className="print:hidden">
+        {!hasAnalysis && <p className="mb-3 text-sm text-amber-700">적합도 분석(결과보고서)을 먼저 하면 평가항목·배점·수주 전략을 반영한 초안이 나옵니다.</p>}
         <textarea
           className={`${inputCls} h-20`}
-          placeholder="추가 지시사항 (선택) — 예: 클라우드 전환 경험을 강조, 3장은 15쪽 이내, 우리 회사 솔루션 OOO 적용 방안 포함"
+          placeholder="추가 지시사항 (선택) — 예: 클라우드 전환 경험 강조, 3장은 15쪽 분량, 당사 솔루션 OOO 적용 방안 포함"
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
         />
@@ -88,21 +85,27 @@ export function ProposalPanel({
           </Button>
           {running && <span className="text-sm text-slate-600">{status}</span>}
         </div>
+        <p className="mt-2 text-xs text-slate-500">
+          제안요청서 목차와 요구사항을 모두 반영하고, 표·다이어그램·차트와 요구사항 대응표·추가 제언을 넣어 작성합니다. 분량에 따라 3~10분 걸립니다.
+        </p>
         <ErrorBox error={err} />
       </Card>
 
       {running && live && (
         <Card title="작성 중…">
-          <div className="prose-md max-h-[70vh] overflow-y-auto text-sm" dangerouslySetInnerHTML={{ __html: renderMarkdown(live) }} />
+          <div className="max-h-[75vh] overflow-y-auto text-sm">
+            <RichMarkdown src={live} />
+          </div>
         </Card>
       )}
 
       {!running && current && (
         <Card
+          className="print:border-0 print:shadow-none"
           title={
-            <span className="flex items-center gap-2">
+            <span className="flex flex-wrap items-center gap-2">
               제안서 초안
-              <select className={`${inputBase} w-auto py-0.5 text-xs`} value={current.id} onChange={(e) => setSelId(e.target.value)}>
+              <select className={`${inputBase} w-auto py-0.5 text-xs print:hidden`} value={current.id} onChange={(e) => setSelId(e.target.value)}>
                 {proposals.map((p) => (
                   <option key={p.id} value={p.id}>
                     v{p.version} · {utcToKst(p.created_at)}
@@ -112,13 +115,13 @@ export function ProposalPanel({
             </span>
           }
           actions={
-            <>
+            <div className="flex flex-wrap gap-2 print:hidden">
               {editing ? (
                 <Button
                   size="sm"
-                  loading={saving}
+                  loading={busy === "save"}
                   onClick={async () => {
-                    setSaving(true);
+                    setBusy("save");
                     try {
                       await api.send("PUT", `/proposals/${current.id}`, { content_md: draft });
                       setEditing(false);
@@ -126,7 +129,7 @@ export function ProposalPanel({
                     } catch (e) {
                       setErr(e);
                     } finally {
-                      setSaving(false);
+                      setBusy(null);
                     }
                   }}
                 >
@@ -137,22 +140,45 @@ export function ProposalPanel({
                   <Pencil className="h-3.5 w-3.5" /> 편집
                 </Button>
               )}
-              <Button size="sm" variant="secondary" onClick={() => exportProposalDocx(draft, bid.title, `${fname}.docx`)}>
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={busy === "docx"}
+                onClick={async () => {
+                  setBusy("docx");
+                  setErr(null);
+                  try {
+                    const { exportProposalDocx } = await import("../lib/docx");
+                    await exportProposalDocx(draft, bid.title, `${fname}.docx`, setStatus);
+                  } catch (e) {
+                    setErr(e);
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
                 <FileDown className="h-3.5 w-3.5" /> Word
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => saveBlob(new Blob([draft], { type: "text/markdown;charset=utf-8" }), `${fname}.md`)}>
+              <Button size="sm" variant="secondary" onClick={() => window.print()}>
+                <Printer className="h-3.5 w-3.5" /> 인쇄·PDF
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => saveBlob(new Blob([draft], { type: "text/markdown;charset=utf-8" }), `${fname}.md`)}>
                 <Download className="h-3.5 w-3.5" /> MD
               </Button>
-            </>
+            </div>
           }
         >
+          {busy === "docx" && <p className="mb-2 text-xs text-slate-500 print:hidden">{status}</p>}
           {editing ? (
             <textarea className={`${inputCls} h-[70vh] font-mono text-xs`} value={draft} onChange={(e) => setDraft(e.target.value)} />
           ) : (
-            <div className="prose-md text-sm" dangerouslySetInnerHTML={{ __html: renderMarkdown(draft) }} />
+            <div className="text-sm">
+              <RichMarkdown src={draft} />
+            </div>
           )}
         </Card>
       )}
+      {!running && !current && <p className="text-sm text-slate-500">아직 제안서 초안이 없습니다.</p>}
     </div>
   );
 }

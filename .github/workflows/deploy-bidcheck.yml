@@ -2,7 +2,7 @@ name: Deploy BidCheck (Cloudflare)
 
 # GitHub 저장소 Secrets 에 아래 값을 등록하면 D1 생성, DB 마이그레이션, 비밀값 등록, 배포까지 자동으로 수행한다.
 #   CLOUDFLARE_API_TOKEN (필수), CLOUDFLARE_ACCOUNT_ID (선택: 계정이 하나면 자동 인식)
-#   ANTHROPIC_API_KEY, G2B_SERVICE_KEY, APP_PASSWORD (앱 동작에 필요)
+#   API 키·사용자 계정은 웹 화면([설정])에서 관리한다. (원하면 ANTHROPIC_API_KEY, G2B_SERVICE_KEY 시크릿으로도 넣을 수 있음)
 on:
   push:
     branches: [main, claude/elegant-hopper-x2nrfs]
@@ -84,11 +84,10 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           G2B_SERVICE_KEY: ${{ secrets.G2B_SERVICE_KEY }}
-          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
         run: |
           node -e '
             const o = {};
-            for (const k of ["ANTHROPIC_API_KEY", "G2B_SERVICE_KEY", "APP_PASSWORD"]) if (process.env[k]) o[k] = process.env[k];
+            for (const k of ["ANTHROPIC_API_KEY", "G2B_SERVICE_KEY"]) if (process.env[k]) o[k] = process.env[k];
             require("fs").writeFileSync("/tmp/secrets.json", JSON.stringify(o));
             console.log("등록할 비밀값:", Object.keys(o).join(", ") || "(없음)");
           '
