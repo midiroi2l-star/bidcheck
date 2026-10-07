@@ -41,10 +41,17 @@ jobs:
           npm run build
           echo "::warning::CLOUDFLARE_API_TOKEN 시크릿이 없어 배포를 건너뜁니다 (빌드 검증만 수행)."
 
+      - name: Check Cloudflare account
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npx wrangler whoami
+
       - name: Ensure D1 database
         if: env.CLOUDFLARE_API_TOKEN != ''
         run: |
-          find_id() { npx wrangler d1 list --json 2>/dev/null | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s.slice(s.indexOf("[")));const db=j.find(x=>x.name==="bidcheck");process.stdout.write(db?db.uuid:"")})'; }
+          find_id() {
+            npx wrangler d1 list --json > /tmp/d1.json
+            node -e 'const s=require("fs").readFileSync("/tmp/d1.json","utf8");const j=JSON.parse(s.slice(s.indexOf("[")));const db=j.find(x=>x.name==="bidcheck");process.stdout.write(db?db.uuid:"")'
+          }
           ID=$(find_id)
           if [ -z "$ID" ]; then
             echo "D1 데이터베이스 생성"
